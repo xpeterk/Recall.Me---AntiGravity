@@ -1,0 +1,85 @@
+﻿Running Gradle task 'assembleRelease'...                        
+flutter : 
+At line:1 char:1
++ flutter build apk 
+> build_log_4.txt 
+2>&1
++ ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (:String   
+ ) [], RemoteExce    
+ption
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+FAILURE: Build 
+failed with an 
+exception.
+
+* What went wrong:
+A problem occurred 
+configuring project '
+:perfect_volume_contr
+ol'.
+> Could not create 
+an instance of type c
+om.android.build.api.
+variant.impl.LibraryV
+ariantBuilderImpl.
+   > Namespace not 
+specified. Specify a 
+namespace in the 
+module's build file: 
+C:\Users\xpete\AppDat
+a\Local\Pub\Cache\hos
+ted\pub.dev\perfect_v
+olume_control-1.0.6\a
+ndroid\build.gradle. 
+See https://d.android
+.com/r/tools/upgrade-
+assistant/set-namespa
+ce for information 
+about setting the 
+namespace.
+
+     If you've 
+specified the 
+package attribute in 
+the source 
+AndroidManifest.xml, 
+you can use the AGP 
+Upgrade Assistant to 
+migrate to the 
+namespace value in 
+the build file. 
+Refer to https://d.an
+droid.com/r/tools/upg
+rade-assistant/agp-up
+grade-assistant for 
+general information 
+about using the AGP 
+Upgrade Assistant.
+
+* Try:
+> Run with 
+--stacktrace option 
+to get the stack 
+trace.
+> Run with --info or 
+--debug option to 
+get more log output.
+> Run with --scan to 
+get full insights.
+> Get more help at ht
+tps://help.gradle.org
+.
+
+BUILD FAILED in 2s
+Running Gradle task 'assembleRelease'...                            3.1s
+Gradle task 
+assembleRelease 
+failed with exit 
+code 1

@@ -1,0 +1,49 @@
+﻿> Task :gradle:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle:compileKotlin UP-TO-DATE
+> Task :gradle:compileJava NO-SOURCE
+> Task :gradle:compileGroovy NO-SOURCE
+> Task :gradle:pluginDescriptors UP-TO-DATE
+> Task :gradle:processResources UP-TO-DATE
+> Task :gradle:classes UP-TO-DATE
+> Task :gradle:jar UP-TO-DATE
+
+> Task :app:signingReport
+Variant: debug
+Config: debug
+Store: C:\Users\xpete\.android\debug.keystore
+Alias: AndroidDebugKey
+MD5: CB:09:48:A3:52:1C:50:F8:93:55:A3:AD:68:B3:C6:C1
+SHA1: 60:0A:4E:59:08:66:46:2C:9C:DE:68:0A:FC:45:E5:89:DF:32:DB:7A
+SHA-256: ED:E8:C9:87:61:F6:63:16:26:07:61:51:B1:7D:BA:7D:9F:DE:73:02:3C:73:A9:FE:22:E9:19:ED:4E:D8:7E:04
+Valid until: Tuesday, January 4, 2056
+----------
+Variant: release
+Config: debug
+Store: C:\Users\xpete\.android\debug.keystore
+Alias: AndroidDebugKey
+MD5: CB:09:48:A3:52:1C:50:F8:93:55:A3:AD:68:B3:C6:C1
+SHA1: 60:0A:4E:59:08:66:46:2C:9C:DE:68:0A:FC:45:E5:89:DF:32:DB:7A
+SHA-256: ED:E8:C9:87:61:F6:63:16:26:07:61:51:B1:7D:BA:7D:9F:DE:73:02:3C:73:A9:FE:22:E9:19:ED:4E:D8:7E:04
+Valid until: Tuesday, January 4, 2056
+----------
+Variant: profile
+Config: debug
+Store: C:\Users\xpete\.android\debug.keystore
+Alias: AndroidDebugKey
+MD5: CB:09:48:A3:52:1C:50:F8:93:55:A3:AD:68:B3:C6:C1
+SHA1: 60:0A:4E:59:08:66:46:2C:9C:DE:68:0A:FC:45:E5:89:DF:32:DB:7A
+SHA-256: ED:E8:C9:87:61:F6:63:16:26:07:61:51:B1:7D:BA:7D:9F:DE:73:02:3C:73:A9:FE:22:E9:19:ED:4E:D8:7E:04
+Valid until: Tuesday, January 4, 2056
+----------
+Variant: debugAndroidTest
+Config: debug
+Store: C:\Users\xpete\.android\debug.keystore
+Alias: AndroidDebugKey
+MD5: CB:09:48:A3:52:1C:50:F8:93:55:A3:AD:68:B3:C6:C1
+SHA1: 60:0A:4E:59:08:66:46:2C:9C:DE:68:0A:FC:45:E5:89:DF:32:DB:7A
+SHA-256: ED:E8:C9:87:61:F6:63:16:26:07:61:51:B1:7D:BA:7D:9F:DE:73:02:3C:73:A9:FE:22:E9:19:ED:4E:D8:7E:04
+Valid until: Tuesday, January 4, 2056
+----------
+
+BUILD SUCCESSFUL in 7s
+5 actionable tasks: 1 executed, 4 up-to-date

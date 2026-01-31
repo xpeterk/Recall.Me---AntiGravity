@@ -1,0 +1,42 @@
+﻿Resolving dependencies...
+flutter : Because 
+recall_me_native 
+depends on 
+google_generative_ai 
+^0.4.15 which 
+doesn't match any 
+versions, version 
+solving failed.
+At line:1 char:1
++ flutter pub get 
+2>&1 | Out-File 
+-Encoding utf8 
+pub_error_2.txt
++ 
+~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (Because   
+  recall_...solvi    
+ng failed.:Strin    
+g) [], RemoteExc    
+eption
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+
+
+You can try the 
+following suggestion 
+to make the pubspec 
+resolve:
+* Consider 
+downgrading your 
+constraint on google_
+generative_ai: 
+flutter pub add googl
+e_generative_ai:^0.4.
+7
+Failed to update 
+packages.
