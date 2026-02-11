@@ -118,19 +118,23 @@ class _BubbleLibraryPageState extends State<BubbleLibraryPage> {
                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                  ),
                                  if (bubble.useNotionContext)
-                                   Padding(
-                                     padding: const EdgeInsets.only(top: 4),
-                                     child: Row(
-                                       children: [
-                                         Icon(Icons.link, size: 12, color: Theme.of(context).colorScheme.secondary),
-                                         const SizedBox(width: 4),
-                                         Text(
-                                           "Notion Linked",
-                                           style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.secondary),
-                                         ),
-                                       ],
-                                     ),
-                                   ),
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.link, size: 12, color: Theme.of(context).colorScheme.secondary),
+                                          const SizedBox(width: 4),
+                                          Flexible(
+                                            child: Text(
+                                              "Notion Linked",
+                                              style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.secondary),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                ],
                              ),
                            ),

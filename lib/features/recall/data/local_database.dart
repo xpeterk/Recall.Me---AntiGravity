@@ -103,6 +103,20 @@ class LocalDatabase {
     );
   }
 
+  Future<List<Map<String, dynamic>>> getSegmentMetadata(SegmentType type) async {
+    final db = await database;
+    // Optimize: Only fetch ID, source_url, and the first 200 chars of text (for title extraction)
+    // Note: sqflite doesn't support SUBSTR well in all versions, so we fetch text but rely on specific projection if possible.
+    // For now, selecting specific columns avoids fetching other potential large blobs if we had them.
+    final result = await db.query(
+      'segments',
+      columns: ['id', 'text', 'source_url'], 
+      where: 'type = ?',
+      whereArgs: [type.index],
+    );
+    return result;
+  }
+
   Future<List<TranscriptionSegment>> getAllSegments() async {
     final db = await database;
     final result = await db.query('segments', orderBy: 'timestamp DESC');

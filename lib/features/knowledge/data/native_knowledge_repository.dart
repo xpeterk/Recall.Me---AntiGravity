@@ -57,21 +57,21 @@ class NativeKnowledgeRepository implements KnowledgeRepository {
   @override
   Future<Either<Failure, List<Map<String, String>>>> getNotionHeaders() async {
     try {
-      final allSegments = await _db.getAllSegments();
-      final candidates = allSegments.where((s) => s.type == SegmentType.notion).toList();
+      final candidates = await _db.getSegmentMetadata(SegmentType.notion);
       
       final headers = candidates.map((s) {
-         // Extract Title (Line 1: "Notion Page: Title")
-         String title = "Untitled";
-         final firstLine = s.text.split('\n').first;
-         if (firstLine.startsWith("Notion Page: ")) {
-            title = firstLine.replaceFirst("Notion Page: ", "");
-         }
-         return {
-           'id': s.id,
-           'text': title,
-           'url': s.sourceUrl ?? ""
-         };
+          String title = "Untitled";
+          final text = s['text'] as String? ?? "";
+          final firstLine = text.split('\n').first;
+          
+          if (firstLine.startsWith("Notion Page: ")) {
+             title = firstLine.replaceFirst("Notion Page: ", "");
+          }
+          return {
+            'id': s['id'] as String,
+            'text': title,
+            'url': (s['source_url'] as String?) ?? ""
+          };
       }).toList();
       
       return Right(headers);

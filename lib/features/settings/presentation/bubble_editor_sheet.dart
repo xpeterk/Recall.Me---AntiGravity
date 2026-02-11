@@ -372,37 +372,7 @@ class _BubbleEditorSheetState extends State<BubbleEditorSheet> {
                                  label: const Text("Edit Linked Pages"),
                                ),
                                const SizedBox(width: 12),
-                               IconButton(
-                                 icon: const Icon(Icons.help_outline, color: Colors.grey),
-                                 onPressed: () {
-                                    showDialog(
-                                      context: context,
-                                      builder: (ctx) => AlertDialog(
-                                        title: const Text("Notion Table Setup"),
-                                        content: SingleChildScrollView(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text("To improve search results, organize your Knowledge Base in a Notion Database (Table) with these specific columns:\n"),
-                                              Text("1. Answer (Text)", style: TextStyle(fontWeight: FontWeight.bold)),
-                                              Text("The main answer/content for the AI to use.\n"),
-                                              Text("2. Keywords (Text or Multi-select)", style: TextStyle(fontWeight: FontWeight.bold)),
-                                              Text("Keywords to help find this page.\n"),
-                                              Text("3. Alternative Question (Text)", style: TextStyle(fontWeight: FontWeight.bold)),
-                                              Text("Different ways users might ask this question.\n"),
-                                              Divider(),
-                                              Text("The Page Title is always used as the primary 'Question'."),
-                                            ],
-                                          ),
-                                        ),
-                                        actions: [
-                                          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Got it"))
-                                        ],
-                                      ),
-                                    );
-                                 },
-                               ),
+                               // Help Removed per user request
                              ],
                            ),
                          ),

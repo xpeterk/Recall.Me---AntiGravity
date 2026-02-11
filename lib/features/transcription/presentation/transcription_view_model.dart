@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'dart:async'; // For Timer
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart'; // For MethodChannel
 import 'package:flutter/material.dart'; // For Color
 import 'package:http/http.dart' as http;
@@ -311,11 +312,11 @@ class TranscriptionViewModel extends ChangeNotifier {
     );
 
     final result = await _settingsRepository.getBubbles();
-    result.fold(
-      (failure) {
+    await result.fold(
+      (failure) async {
          // Error or empty, load defaults if empty
       },
-      (data) {
+      (data) async {
         if (data.isEmpty) {
           _createDefaultBubbles();
         } else {
@@ -347,59 +348,71 @@ class TranscriptionViewModel extends ChangeNotifier {
             }
           }
           
-          // Ensure "Relation Info" exists (New addition)
-          if (!_bubbles.any((b) => b.id == 'default_relation')) {
-            _bubbles.add(AiBubble(
-              id: 'default_relation',
-              name: 'Relation Info',
-              icon: '🔗',
-              color: const Color(0xFF009688), // Colors.teal
-              systemPrompt: "Identify the relationships between people, organizations, and concepts in the text.",
-            ));
-            needsSave = true;
-          }
-          
-          // Ensure "Reference" exists (New addition 🐘)
-          if (!_bubbles.any((b) => b.id == 'default_reference')) {
-            _bubbles.add(AiBubble(
-              id: 'default_reference',
-              name: 'Reference',
-              icon: '🐘',
-              color: const Color(0xFF795548), // Colors.brown
-              systemPrompt: "Identify and list all references, citations, external links, and key entities mentioned in the text.",
-            ));
-            needsSave = true;
-          }
+          // MIGRATION: One-time addition of new bubbles (v3)
+          // This prevents them from reappearing if the user deleted them.
+          final prefs = await SharedPreferences.getInstance();
+          final outputv3Migrated = prefs.getBool('migration_v3_bubbles_added') ?? false;
 
-          // Ensure "Ask AI" exists (New addition 🤖)
-          if (!_bubbles.any((b) => b.id == 'default_general_ai')) {
-             _bubbles.add(AiBubble(
-              id: 'default_general_ai',
-              name: 'Ask AI',
-              icon: '🤖',
-              color: const Color(0xFF607D8B), // Colors.blueGrey
-              systemPrompt: "You are a helpful AI assistant. Answer the user's prompt freely.",
-            ));
-            needsSave = true;
-          }
-
-          // Ensure "Notion Search" exists (User Request)
-          if (!_bubbles.any((b) => b.id == 'default_notion_search')) {
-             _bubbles.add(AiBubble(
-              id: 'default_notion_search',
-              name: 'Notion Search',
-              icon: '🔎',
-              color: const Color(0xFFE91E63), 
-              systemPrompt: "Review the provided Notion Index. Find the best possible answer for the selected text by displaying a Page title and Link to the top 5 best possible Notion answers. For speed, do not include summaries, ONLY the Title and Link.",
-              useNotionContext: true,
-              isMultiOutput: true,
-              additionalPrompts: ["Review the provided Notion Index. Display the Page title and Link to the next 5 best possible Notion answers. For speed, do not include summaries, ONLY the Title and Link."],
-            ));
-            needsSave = true;
-          }
-
-          if (needsSave) {
-            _saveBubbles();
+          if (!outputv3Migrated) {
+             bool migrationNeeded = false;
+             
+             // Ensure "Relation Info" exists
+             if (!_bubbles.any((b) => b.id == 'default_relation')) {
+               _bubbles.add(AiBubble(
+                 id: 'default_relation',
+                 name: 'Relation Info',
+                 icon: '🔗',
+                 color: const Color(0xFF009688), // Colors.teal
+                 systemPrompt: "Identify the relationships between people, organizations, and concepts in the text.",
+               ));
+               migrationNeeded = true;
+             }
+             
+             // Ensure "Reference" exists
+             if (!_bubbles.any((b) => b.id == 'default_reference')) {
+               _bubbles.add(AiBubble(
+                 id: 'default_reference',
+                 name: 'Reference',
+                 icon: '🐘',
+                 color: const Color(0xFF795548), // Colors.brown
+                 systemPrompt: "Identify and list all references, citations, external links, and key entities mentioned in the text.",
+               ));
+               migrationNeeded = true;
+             }
+   
+             // Ensure "Ask AI" exists
+             if (!_bubbles.any((b) => b.id == 'default_general_ai')) {
+                _bubbles.add(AiBubble(
+                 id: 'default_general_ai',
+                 name: 'Ask AI',
+                 icon: '🤖',
+                 color: const Color(0xFF607D8B), // Colors.blueGrey
+                 systemPrompt: "You are a helpful AI assistant. Answer the user's prompt freely.",
+               ));
+               migrationNeeded = true;
+             }
+   
+             // Ensure "Notion Search" exists
+             if (!_bubbles.any((b) => b.id == 'default_notion_search')) {
+                _bubbles.add(AiBubble(
+                 id: 'default_notion_search',
+                 name: 'Notion Search',
+                 icon: '🔎',
+                 color: const Color(0xFFE91E63), 
+                 systemPrompt: "Review the provided Notion Index. Find the best possible answer for the selected text by displaying a Page title and Link to the top 5 best possible Notion answers. For speed, do not include summaries, ONLY the Title and Link.",
+                 useNotionContext: true,
+                 isMultiOutput: true,
+                 additionalPrompts: ["Review the provided Notion Index. Display the Page title and Link to the next 5 best possible Notion answers. For speed, do not include summaries, ONLY the Title and Link."],
+               ));
+               migrationNeeded = true;
+             }
+             
+             if (migrationNeeded) {
+               _saveBubbles();
+             }
+             
+             // Mark migration as done
+             await prefs.setBool('migration_v3_bubbles_added', true);
           }
         }
         notifyListeners();

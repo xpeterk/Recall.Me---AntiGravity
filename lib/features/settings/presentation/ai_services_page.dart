@@ -345,6 +345,33 @@ class _AiServicesPageState extends State<AiServicesPage> {
                    child: Column(
                      crossAxisAlignment: CrossAxisAlignment.start,
                      children: [
+                       // Helper Guide
+                       ExpansionTile(
+                         title: const Text("Setup Guide: Connections & RAG", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                         children: [
+                           Padding(
+                             padding: const EdgeInsets.all(12.0),
+                             child: Column(
+                               crossAxisAlignment: CrossAxisAlignment.start,
+                               children: [
+                                 const Text("1. Get your Integration Secret:"),
+                                 InkWell(
+                                   onTap: () {}, // Ideally launch URL
+                                   child: const Text("https://www.notion.so/my-integrations", style: TextStyle(color: Colors.blue)),
+                                 ),
+                                 const SizedBox(height: 8),
+                                 const Text("2. Connect your Page:"),
+                                 const Text("Go to your Notion Page > ... Menu > Connections > Add your Integration."),
+                                 const SizedBox(height: 8),
+                                 const Text("3. Optional: Optimize for RAG Search"),
+                                 const Text("For best results, use a Table Database with columns: 'Question' and 'Keywords'. The page content serves as the answer."),
+                               ],
+                             ),
+                           ),
+                         ],
+                       ),
+                       const SizedBox(height: 12),
+
                        TextField(
                          controller: _notionController,
                          obscureText: !_isNotionVisible,
