@@ -22,7 +22,7 @@ class LocalDatabase {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 6,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -58,6 +58,14 @@ class LocalDatabase {
       // Add Web Search column (v4)
       await db.execute("ALTER TABLE bubbles ADD COLUMN use_web_search INTEGER DEFAULT 0");
     }
+    if (oldVersion < 5) {
+       // Add included_segment_ids for summaries (v5)
+       await db.execute("ALTER TABLE segments ADD COLUMN included_segment_ids TEXT");
+    }
+    if (oldVersion < 6) {
+       // Add confidence score (v6) - Default to 1.0 (High confidence for legacy)
+       await db.execute("ALTER TABLE segments ADD COLUMN confidence REAL DEFAULT 1.0");
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -71,7 +79,9 @@ class LocalDatabase {
         source_url TEXT,
         is_synced INTEGER NOT NULL,
         bubble_name TEXT,
-        bubble_icon TEXT
+        bubble_icon TEXT,
+        included_segment_ids TEXT,
+        confidence REAL DEFAULT 1.0
       )
     ''');
 

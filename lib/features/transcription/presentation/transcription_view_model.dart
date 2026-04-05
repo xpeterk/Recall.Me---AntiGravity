@@ -63,9 +63,46 @@ class TranscriptionViewModel extends ChangeNotifier {
   String _searchQuery = "";
   String get searchQuery => _searchQuery;
 
+  // Context State
+  String? _conversationStarter;
+  String? get conversationStarter => _conversationStarter;
+  List<String>? _cachedCalendarEvents;
+  DateTime? _lastCalendarFetch;
+
+  void setConversationStarter(String text) {
+    _conversationStarter = text.isEmpty ? null : text;
+    notifyListeners();
+  }
+
+  Future<void> _fetchCalendarEventsIfNeeded() async {
+     if (!isGoogleAuthenticated) return;
+     // Cache for 5 minutes
+     if (_cachedCalendarEvents != null && _lastCalendarFetch != null) {
+        if (DateTime.now().difference(_lastCalendarFetch!).inMinutes < 5) return;
+     }
+     try {
+       _cachedCalendarEvents = await _googleService.getUpcomingEvents(count: 3);
+       _lastCalendarFetch = DateTime.now();
+     } catch (e) {
+       print("Error fetching calendar events for context: $e");
+     }
+  }
+
   // System Message State
   bool _showSystemMessages = true;
   bool get showSystemMessages => _showSystemMessages;
+
+  // Auto-Summary State
+  bool _enableAutoSummary = false;
+  bool get enableAutoSummary => _enableAutoSummary;
+  final Set<String> _unsummarizedSegmentIds = {};
+  final Set<String> _expandedSummaryIds = {};
+  bool isSummaryExpanded(String id) => _expandedSummaryIds.contains(id);
+  
+  // Diagnostics State
+  bool _showDiagnostics = false;
+  bool get showDiagnostics => _showDiagnostics;
+  double _currentConfidence = 1.0;
 
   // Sync State
   DateTime? _lastSyncTime;
@@ -86,6 +123,21 @@ class TranscriptionViewModel extends ChangeNotifier {
     if (!_showSystemMessages) {
       list = list.where((s) => s.type != SegmentType.notion).toList();
     }
+
+    // Filter Summarized Segments (Collapse Logic)
+    final collapsedSummaries = list.where((s) => 
+        s.type == SegmentType.summary && !isSummaryExpanded(s.id)
+    ).toList();
+
+    final hiddenIds = <String>{};
+    for (var summary in collapsedSummaries) {
+       hiddenIds.addAll(summary.includedSegmentIds);
+    }
+
+    if (hiddenIds.isNotEmpty) {
+       list = list.where((s) => !hiddenIds.contains(s.id)).toList();
+    }
+
 
     // Filter Search
     if (_searchQuery.isNotEmpty) {
@@ -120,6 +172,27 @@ class TranscriptionViewModel extends ChangeNotifier {
     _showSystemMessages = value;
     notifyListeners();
     await _settingsRepository.setPreference('show_system_messages', value);
+  }
+
+  void toggleSummaryExpansion(String summaryId) {
+    if (_expandedSummaryIds.contains(summaryId)) {
+      _expandedSummaryIds.remove(summaryId);
+    } else {
+      _expandedSummaryIds.add(summaryId);
+    }
+    notifyListeners();
+  }
+
+  Future<void> toggleAutoSummary(bool value) async {
+    _enableAutoSummary = value;
+    notifyListeners();
+    await _settingsRepository.setPreference('enable_auto_summary', value);
+  }
+
+  Future<void> toggleDiagnostics(bool value) async {
+    _showDiagnostics = value;
+    notifyListeners();
+    await _settingsRepository.setPreference('show_diagnostics', value);
   }
   String get aiResponse => _aiResponse;
   List<String> get aiResponseList => _aiResponseList;
@@ -202,6 +275,20 @@ class TranscriptionViewModel extends ChangeNotifier {
     await _loadBubbles();
     _loadLastSyncTime();
 
+    // Load Auto-Summary Preference
+    final autoSummaryPref = await _settingsRepository.getPreference('enable_auto_summary');
+    autoSummaryPref.fold(
+      (_) {},
+      (val) { if (val is bool) _enableAutoSummary = val; }
+    );
+    
+    // Load Diagnostics Preference
+    final diagPref = await _settingsRepository.getPreference('show_diagnostics');
+    diagPref.fold(
+      (_) {},
+      (val) { if (val is bool) _showDiagnostics = val; }
+    );
+    
     // Trigger Background Sync (Silent)
     backgroundSync(silent: true);
 
@@ -224,7 +311,10 @@ class TranscriptionViewModel extends ChangeNotifier {
           
           // Calculate "Pending" text by subtracting what we've already committed
           final fullText = result.text;
-          print("DEBUG: STT Stream: $fullText (len: ${fullText.length}) | Offset: $_processedOffset");
+          if (result.confidence > 0) {
+             _currentConfidence = result.confidence;
+          }
+          print("DEBUG: STT Stream: $fullText (len: ${fullText.length}) | Conf: $_currentConfidence | Offset: $_processedOffset");
           
           if (fullText.length >= _processedOffset) {
              _text = fullText.substring(_processedOffset);
@@ -295,7 +385,6 @@ class TranscriptionViewModel extends ChangeNotifier {
 
   Future<void> _loadSegments() async {
     _segments = await _db.getAllSegments();
-    print("DEBUG: Loaded ${_segments.length} segments from DB.");
     notifyListeners();
   }
 
@@ -543,6 +632,7 @@ class TranscriptionViewModel extends ChangeNotifier {
     await _loadSegments();
   }
 
+
   Future<void> _commitCurrentText(String textToCommit) async {
     if (textToCommit.trim().isEmpty) return;
     
@@ -557,23 +647,102 @@ class TranscriptionViewModel extends ChangeNotifier {
     final sentences = processingText.split(RegExp(r'(?<=[.?!])\s+'));
     
     for (var sentence in sentences) {
-      if (sentence.trim().isEmpty) continue;
+      final trimmed = sentence.trim();
+      if (trimmed.isEmpty) continue;
+
+      // START DEDUPLICATION: Check against the latest segment
+      if (_segments.isNotEmpty) {
+         final last = _segments.first;
+         if (last.type == SegmentType.audio && last.text == trimmed) {
+            final timeDiff = DateTime.now().difference(last.timestamp).abs();
+            // If identical text committed within 5 seconds, assume it's a glitch/duplicate
+            if (timeDiff.inSeconds < 5) {
+               print("DEBUG: Duplicate segment ignored: $trimmed");
+               continue;
+            }
+         }
+      }
+      // END DEDUPLICATION
       
       final newSegment = TranscriptionSegment(
         id: DateTime.now().millisecondsSinceEpoch.toString() + sentence.hashCode.toString(), // Unique ID per chunk
         text: sentence.trim(),
         timestamp: DateTime.now(),
         type: SegmentType.audio,
+        confidence: _currentConfidence,
       );
+
+      // Auto-Summary Tracking
+      if (_enableAutoSummary) {
+         _unsummarizedSegmentIds.add(newSegment.id);
+      }
 
       print("DEBUG: Inserting Segment: ${newSegment.id}");
       await _db.insertSegment(newSegment);
+      
+      // Auto-Summary Tracking
+      if (_enableAutoSummary) {
+         _unsummarizedSegmentIds.add(newSegment.id);
+      }
     }
     
     print("DEBUG: Commit Complete. Reloading...");
     await _loadSegments(); // Refresh list
+    
+    // Trigger Auto-Summary Check
+    if (_enableAutoSummary && _unsummarizedSegmentIds.length >= 6) {
+       _generateAutoSummary();
+    }
   }
+
+  Future<void> _generateAutoSummary() async {
+     // 1. Get segments to summarize
+     // We need to fetch the actual text. In a real app we might query specific IDs.
+     // Here we filter the in-memory list which should remain sync'd.
+     final segmentsToSummarize = _segments.where((s) => _unsummarizedSegmentIds.contains(s.id)).toList();
+     
+     if (segmentsToSummarize.isEmpty) return;
+     
+     // 2. Prepare text
+     final textBlock = segmentsToSummarize.map((s) => s.text).join(" ");
+     final includedIds = segmentsToSummarize.map((s) => s.id).toList();
+     
+     // Clear tracking immediately to prevent double firing
+     _unsummarizedSegmentIds.clear();
+
+     // 3. Generate Summary
+     final prompt = "Create a single short sentence summary key point or question for the following text. Do not use 'Here is a summary'. Just the summary:\n\n$textBlock";
+     
+     try {
+        final result = await _activeAiService.generate(prompt, model: _selectedModel);
+        
+        result.fold(
+          (failure) { print("Auto-Summary Failed: ${failure.message}"); },
+          (summaryText) async {
+             // 4. Create and Save Summary Segment
+             final summarySegment = TranscriptionSegment(
+               id: DateTime.now().millisecondsSinceEpoch.toString() + "_summary",
+               text: summaryText.trim(),
+               timestamp: DateTime.now(),
+               type: SegmentType.summary,
+               includedSegmentIds: includedIds,
+               bubbleIcon: "📌", 
+               bubbleName: "Auto-Summary"
+             );
+             
+             await _db.insertSegment(summarySegment);
+             await _loadSegments();
+          }
+        );
+     } catch (e) {
+       print("Auto-Summary Error: $e");
+     }
+  }
+
   
+
+
+
   // ... (Save AI Memory restored) ...
   Future<void> saveAiMemory(String title, String content) async {
     // If we are just viewing an existing one, don't save a duplicate
@@ -844,6 +1013,16 @@ Analysis:
     
     // PRE-FETCH CONTEXT (Optimization: Fetch once for all prompts in this bubble)
     String commonContext = "";
+    
+    if (_conversationStarter != null && _conversationStarter!.isNotEmpty) {
+      commonContext += "\n\n--- Global Context ---\nUser's Current Context/Goal: $_conversationStarter\n------------------------\n";
+    }
+
+    // Always attempt to fetch calendar if authenticated, to provide temporal context
+    await _fetchCalendarEventsIfNeeded();
+    if (_cachedCalendarEvents != null && _cachedCalendarEvents!.isNotEmpty) {
+      commonContext += "\n\n--- Upcoming Calendar ---\n${_cachedCalendarEvents!.join('\n')}\n------------------------\n";
+    }
     
     if (bubble.useGoogleContext && isGoogleAuthenticated) {
         _aiResponse = "Fetching Google Context...";
@@ -1515,11 +1694,21 @@ If no entry is relevant, return "NONE".
 
     if (_suggestedBubbleCount <= 0) return;
 
+    await _fetchCalendarEventsIfNeeded();
+    String contextString = "";
+    if (_conversationStarter != null && _conversationStarter!.isNotEmpty) {
+      contextString += "User's current context/goal: $_conversationStarter\n";
+    }
+    if (_cachedCalendarEvents != null && _cachedCalendarEvents!.isNotEmpty) {
+      contextString += "User's upcoming calendar events:\n${_cachedCalendarEvents!.join('\n')}\n";
+    }
+
     final prompt = """
 Analyze the following text and suggest $_suggestedBubbleCount short, actionable AI tasks that the user might want to perform on it.
 Return ONLY a JSON array of objects with keys: "name", "icon" (emoji), "prompt" (system prompt for the task).
 Example: [{"name": "Reply", "icon": "✉️", "prompt": "Draft a polite reply to this message."}]
 
+${contextString.isNotEmpty ? "---\nAdditional Context to heavily influence suggestions:\n$contextString\n---\n" : ""}
 Text:
 $text
 """;

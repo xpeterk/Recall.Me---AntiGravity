@@ -1,4 +1,4 @@
-enum SegmentType { audio, aiResponse, notion }
+enum SegmentType { audio, aiResponse, notion, summary }
 
 class TranscriptionSegment {
   final String id;
@@ -11,6 +11,10 @@ class TranscriptionSegment {
   bool isSelected;
   final String? bubbleName;
   final String? bubbleIcon;
+  final List<String> includedSegmentIds; // IDs of segments summarized by this bubble
+  bool isExpanded; // UI state for summary expansion
+
+  final double confidence;
 
   TranscriptionSegment({
     required this.id,
@@ -23,6 +27,9 @@ class TranscriptionSegment {
     this.isSelected = false,
     this.bubbleName,
     this.bubbleIcon,
+    this.includedSegmentIds = const [],
+    this.isExpanded = false,
+    this.confidence = 1.0,
   });
 
   // Convert to Map for Database
@@ -37,6 +44,8 @@ class TranscriptionSegment {
       'is_synced': isSynced ? 1 : 0,
       'bubble_name': bubbleName,
       'bubble_icon': bubbleIcon,
+      'included_segment_ids': includedSegmentIds.join(','),
+      'confidence': confidence,
     };
   }
 
@@ -53,6 +62,9 @@ class TranscriptionSegment {
       isSelected: false, // UI state, not persisted
       bubbleName: map['bubble_name'],
       bubbleIcon: map['bubble_icon'],
+      includedSegmentIds: (map['included_segment_ids'] as String?)?.split(',').where((e) => e.isNotEmpty).toList() ?? [],
+      isExpanded: false,
+      confidence: (map['confidence'] as num?)?.toDouble() ?? 1.0,
     );
   }
 }

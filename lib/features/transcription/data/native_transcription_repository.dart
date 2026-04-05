@@ -80,6 +80,7 @@ class NativeTranscriptionRepository implements TranscriptionRepository {
             _transcriptionStreamController.add(TranscriptionResult(
               text: result.recognizedWords,
               isFinal: result.finalResult,
+              confidence: result.confidence,
             ));
           },
           onSoundLevelChange: (level) {

@@ -124,6 +124,29 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
             children: [
               SizedBox(height: kToolbarHeight + MediaQuery.of(context).padding.top),
               
+              // Conversation Starter Input
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: "Add context... (e.g., Doctors Appointment)",
+                    prefixIcon: const Icon(Icons.psychology),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: Theme.of(context).colorScheme.surface.withOpacity(0.5),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                  ),
+                  style: const TextStyle(fontSize: 14),
+                  onChanged: (text) => viewModel.setConversationStarter(text),
+                  // If there is already text, initialize it
+                  // We can't easily set initial text without a controller, but since it's a top-level unmanaged field,
+                  // it will just stay there unless the user navigates away and back.
+                ),
+              ),
+              
               // Transcription List (Frozen or Live)
                 Expanded(
                   child: Stack(
@@ -225,6 +248,8 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                           segment: segment,
                           isSelectionMode: viewModel.isSelectionMode,
                           isSelected: isSelected,
+                          onToggleExpand: viewModel.toggleSummaryExpansion, // Connect callback
+                          showDiagnostics: viewModel.showDiagnostics,
                           onTap: (id) {
                             if (segment.type == SegmentType.aiResponse) {
                                viewModel.viewAiSegment(segment);
@@ -237,6 +262,15 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                                   // No auto-save needed for existing
                                   viewModel.clearAiResponse(); 
                                });
+                            } else if (segment.type == SegmentType.summary) {
+                                // Tap on Summary body = Fact Check (User Request)
+                                viewModel.processWithBubble(viewModel.bubbles.firstWhere((b) => b.name.contains("Fact Check"), orElse: () => viewModel.bubbles.first));
+                                showModalBottomSheet(
+                                   context: context,
+                                   backgroundColor: Colors.transparent,
+                                   isScrollControlled: true,
+                                   builder: (context) => const AiResultBottomSheet(),
+                                );
                             } else if (!viewModel.isFrozen) {
                                viewModel.enterSelectionMode(id);
                             } else {

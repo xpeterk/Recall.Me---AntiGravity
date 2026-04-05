@@ -1,0 +1,150 @@
+﻿Analyzing recall_me_native...                                   
+
+   info - Parameter 'message' could be a super parameter - lib\core\errors\failures.dart:7:9 - use_super_parameters
+   info - Parameter 'message' could be a super parameter - lib\core\errors\failures.dart:11:9 - use_super_parameters
+   info - Parameter 'message' could be a super parameter - lib\core\errors\failures.dart:15:9 - use_super_parameters
+   info - Parameter 'message' could be a super parameter - lib\core\errors\failures.dart:19:9 - use_super_parameters
+warning - Unused import: 'package:flutter/material.dart' - lib\core\services\background_service_manager.dart:4:8 - unused_import
+warning - Unused import: '../../features/transcription/data/native_transcription_repository.dart' - lib\core\services\background_service_manager.dart:7:8 - unused_import
+   info - Don't invoke 'print' in production code - lib\core\services\google_integration_service.dart:36:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\services\google_integration_service.dart:38:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\services\google_integration_service.dart:41:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\services\google_integration_service.dart:45:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\services\google_integration_service.dart:56:7 - avoid_print
+   info - Parameter 'key' could be a super parameter - lib\core\theme\glass_container.dart:14:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\theme\glass_container.dart:39:34 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\theme\glass_container.dart:40:34 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\theme\glass_container.dart:62:45 - deprecated_member_use
+   info - The type parameter name 'Type' matches a visible type name - lib\core\usecases\usecase.dart:4:24 - avoid_types_as_parameter_names
+  error - 'MockKnowledgeRepository.getSegmentById' ('Future<Either<Failure, String>> Function(String)') isn't a valid override of 'KnowledgeRepository.getSegmentById' ('Future<Either<Failure, TranscriptionSegment>> Function(String)') - lib\features\knowledge\data\mock_knowledge_repository.dart:43:35 - invalid_override
+  error - Invalid constant value - lib\features\knowledge\data\mock_knowledge_repository.dart:45:64 - invalid_constant
+   info - Don't invoke 'print' in production code - lib\features\knowledge\data\native_knowledge_repository.dart:18:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\knowledge\data\native_knowledge_repository.dart:21:10 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\knowledge\data\native_knowledge_repository.dart:28:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\knowledge\data\native_knowledge_repository.dart:41:12 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\knowledge\data\native_knowledge_repository.dart:49:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\knowledge\data\native_notion_repository.dart:58:12 - avoid_print
+warning - Unnecessary cast - lib\features\knowledge\data\native_notion_repository.dart:305:32 - unnecessary_cast
+warning - Unnecessary cast - lib\features\knowledge\data\native_notion_repository.dart:306:33 - unnecessary_cast
+   info - Don't invoke 'print' in production code - lib\features\knowledge\data\native_notion_repository.dart:351:10 - avoid_print
+   info - The variable name 'Item' isn't a lowerCamelCase identifier - lib\features\knowledge\data\native_notion_repository.dart:381:32 - non_constant_identifier_names
+warning - The value of the local variable 'legacyKeys' isn't used - lib\features\knowledge\data\native_notion_repository.dart:400:15 - unused_local_variable
+   info - Statements in an if should be enclosed in a block - lib\features\knowledge\data\native_notion_repository.dart:469:40 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\features\knowledge\data\native_notion_repository.dart:470:45 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\features\knowledge\data\native_notion_repository.dart:471:54 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\features\knowledge\data\native_notion_repository.dart:472:20 - curly_braces_in_flow_control_structures
+   info - Parameter 'key' could be a super parameter - lib\features\knowledge\presentation\notion_help_bottom_sheet.dart:5:9 - use_super_parameters
+   info - Parameter 'key' could be a super parameter - lib\features\recall\presentation\ai_result_bottom_sheet.dart:10:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\ai_result_bottom_sheet.dart:32:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\ai_result_bottom_sheet.dart:33:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\ai_result_bottom_sheet.dart:40:26 - deprecated_member_use
+   info - 'imageBuilder' is deprecated and shouldn't be used. Use sizedImageBuilder instead - lib\features\recall\presentation\ai_result_bottom_sheet.dart:116:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\ai_result_bottom_sheet.dart:173:78 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\ai_result_bottom_sheet.dart:174:84 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\ai_result_bottom_sheet.dart:194:82 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\ai_result_bottom_sheet.dart:224:82 - deprecated_member_use
+   info - 'surfaceVariant' is deprecated and shouldn't be used. Use surfaceContainerHighest instead. This feature was deprecated after v3.18.0-0.1.pre - lib\features\recall\presentation\ai_result_bottom_sheet.dart:269:108 - deprecated_member_use
+   info - Parameter 'key' could be a super parameter - lib\features\recall\presentation\recall_shelf.dart:12:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\recall_shelf.dart:31:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\recall_shelf.dart:32:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\recall_shelf.dart:39:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\recall_shelf.dart:40:24 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\recall_shelf.dart:54:60 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\recall_shelf.dart:56:79 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\recall_shelf.dart:94:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\recall_shelf.dart:94:81 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\recall_shelf.dart:95:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\recall_shelf.dart:95:85 - deprecated_member_use
+   info - Parameter 'key' could be a super parameter - lib\features\recall\presentation\transcription_bubble.dart:11:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\transcription_bubble.dart:35:57 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\transcription_bubble.dart:41:67 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\transcription_bubble.dart:47:73 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\transcription_bubble.dart:57:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\transcription_bubble.dart:129:49 - deprecated_member_use
+   info - Parameter 'key' could be a super parameter - lib\features\recall\presentation\transcription_bubble.dart:201:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\recall\presentation\transcription_bubble.dart:238:60 - deprecated_member_use
+warning - Unused import: 'dart:convert' - lib\features\settings\data\native_settings_repository.dart:2:8 - unused_import
+   info - 'value' is deprecated and shouldn't be used. Use component accessors like .r or .g, or toARGB32 for an explicit conversion - lib\features\settings\domain\ai_bubble.dart:40:22 - deprecated_member_use
+warning - Unused import: '../../knowledge/presentation/notion_help_bottom_sheet.dart' - lib\features\settings\presentation\ai_services_page.dart:7:8 - unused_import
+   info - Parameter 'key' could be a super parameter - lib\features\settings\presentation\ai_services_page.dart:10:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\ai_services_page.dart:105:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\ai_services_page.dart:126:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\ai_services_page.dart:127:62 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\features\settings\presentation\ai_services_page.dart:179:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\ai_services_page.dart:338:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\ai_services_page.dart:339:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\ai_services_page.dart:476:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\ai_services_page.dart:477:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\ai_services_page.dart:522:96 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\ai_services_page.dart:541:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\ai_services_page.dart:542:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\ai_services_page.dart:687:69 - deprecated_member_use
+   info - Parameter 'key' could be a super parameter - lib\features\settings\presentation\bubble_editor_sheet.dart:10:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\bubble_editor_sheet.dart:106:53 - deprecated_member_use
+   info - Use a 'SizedBox' to add whitespace to a layout - lib\features\settings\presentation\bubble_editor_sheet.dart:135:21 - sized_box_for_whitespace
+   info - Unnecessary use of 'toList' in a spread - lib\features\settings\presentation\bubble_editor_sheet.dart:207:26 - unnecessary_to_list_in_spreads
+   info - Parameter 'key' could be a super parameter - lib\features\settings\presentation\bubble_library_page.dart:9:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\bubble_library_page.dart:49:57 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\bubble_library_page.dart:139:52 - deprecated_member_use
+   info - Parameter 'key' could be a super parameter - lib\features\settings\presentation\placeholder_page.dart:8:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\placeholder_page.dart:24:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\placeholder_page.dart:40:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\placeholder_page.dart:41:62 - deprecated_member_use
+   info - Parameter 'key' could be a super parameter - lib\features\settings\presentation\settings_page.dart:9:9 - use_super_parameters
+   info - Don't use 'BuildContext's across async gaps - lib\features\settings\presentation\settings_page.dart:88:47 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\features\settings\presentation\settings_page.dart:113:47 - use_build_context_synchronously
+   info - Don't invoke 'print' in production code - lib\features\transcription\data\native_transcription_repository.dart:22:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\data\native_transcription_repository.dart:30:8 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\data\native_transcription_repository.dart:50:13 - avoid_print
+   info - 'partialResults' is deprecated and shouldn't be used. Use SpeechListenOptions.partialResults instead - lib\features\transcription\data\native_transcription_repository.dart:90:11 - deprecated_member_use
+   info - 'cancelOnError' is deprecated and shouldn't be used. Use SpeechListenOptions.cancelOnError instead - lib\features\transcription\data\native_transcription_repository.dart:91:11 - deprecated_member_use
+   info - 'listenMode' is deprecated and shouldn't be used. Use SpeechListenOptions.listenMode instead - lib\features\transcription\data\native_transcription_repository.dart:92:11 - deprecated_member_use
+   info - Don't invoke 'print' in production code - lib\features\transcription\data\native_transcription_repository.dart:98:12 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\data\native_transcription_repository.dart:105:12 - avoid_print
+   info - Parameter 'key' could be a super parameter - lib\features\transcription\presentation\live_transcription_footer.dart:8:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\transcription\presentation\live_transcription_footer.dart:38:61 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\transcription\presentation\live_transcription_footer.dart:39:61 - deprecated_member_use
+   info - Parameter 'key' could be a super parameter - lib\features\transcription\presentation\mic_visualizer.dart:8:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\transcription\presentation\mic_visualizer.dart:44:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\transcription\presentation\mic_visualizer.dart:63:64 - deprecated_member_use
+   info - Parameter 'key' could be a super parameter - lib\features\transcription\presentation\search_bottom_sheet.dart:6:9 - use_super_parameters
+   info - Parameter 'key' could be a super parameter - lib\features\transcription\presentation\transcription_page.dart:14:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\transcription\presentation\transcription_page.dart:114:57 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\transcription\presentation\transcription_page.dart:158:75 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\transcription\presentation\transcription_page.dart:166:77 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\transcription\presentation\transcription_page.dart:219:50 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps - lib\features\transcription\presentation\transcription_page.dart:308:53 - use_build_context_synchronously
+   info - The import of 'package:flutter/foundation.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart' - lib\features\transcription\presentation\transcription_view_model.dart:1:8 - unnecessary_import
+warning - Duplicate import - lib\features\transcription\presentation\transcription_view_model.dart:14:8 - duplicate_import
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:271:11 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:277:14 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:316:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:318:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:342:5 - avoid_print
+warning - The value of the local variable 'needsSave' isn't used - lib\features\transcription\presentation\transcription_view_model.dart:370:16 - unused_local_variable
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:600:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:619:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:628:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:659:23 - avoid_print
+   info - Use interpolation to compose strings and values - lib\features\transcription\presentation\transcription_view_model.dart:663:20 - prefer_interpolation_to_compose_strings
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:677:8 - avoid_print
+warning - The value of the local variable 'foundNotionUrl' isn't used - lib\features\transcription\presentation\transcription_view_model.dart:983:17 - unused_local_variable
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:1023:23 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:1039:23 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:1042:23 - avoid_print
+   info - The 'if' statement could be replaced by a null-aware assignment - lib\features\transcription\presentation\transcription_view_model.dart:1167:5 - prefer_conditional_assignment
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:1285:27 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:1376:22 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:1383:27 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:1390:22 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:1405:8 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:1473:7 - avoid_print
+   info - The private field _preMuteVolumes could be 'final' - lib\features\transcription\presentation\transcription_view_model.dart:1487:17 - prefer_final_fields
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:1491:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:1510:10 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:1519:16 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:1525:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:1640:34 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:1647:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\transcription\presentation\transcription_view_model.dart:1665:7 - avoid_print
+

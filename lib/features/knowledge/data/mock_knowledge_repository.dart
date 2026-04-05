@@ -29,4 +29,19 @@ class MockKnowledgeRepository implements KnowledgeRepository {
       "User Context: The user is a developer testing the functionality."
     ]);
   }
+
+  @override
+  Future<Either<Failure, List<Map<String, String>>>> getNotionHeaders() async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    return const Right([
+      {'id': 'mock-1', 'text': 'Mock Page 1', 'url': 'https://notion.so/mock1'},
+      {'id': 'mock-2', 'text': 'Mock Page 2', 'url': 'https://notion.so/mock2'},
+    ]);
+  }
+
+  @override
+  Future<Either<Failure, String>> getSegmentById(String id) async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    return const Right("This is the mock content for page ID: $id");
+  }
 }

@@ -6,6 +6,8 @@ class TranscriptionBubble extends StatelessWidget {
   final bool isSelectionMode;
   final bool isSelected;
   final Function(String) onTap;
+  final Function(String)? onToggleExpand; // Callback for summary expansion
+  final bool showDiagnostics;
 
   const TranscriptionBubble({
     Key? key,
@@ -13,16 +15,19 @@ class TranscriptionBubble extends StatelessWidget {
     required this.isSelectionMode,
     required this.isSelected,
     required this.onTap,
+    this.onToggleExpand,
+    this.showDiagnostics = false,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final isAi = segment.type == SegmentType.aiResponse;
     final isNotion = segment.type == SegmentType.notion;
+    final isSummary = segment.type == SegmentType.summary;
     
     // Alignment
-    final alignment = isAi ? Alignment.centerRight : Alignment.centerLeft;
-    final margin = isAi 
+    final alignment = (isAi || isSummary) ? Alignment.centerRight : Alignment.centerLeft;
+    final margin = (isAi || isSummary)
         ? const EdgeInsets.only(left: 48, top: 4, bottom: 4) 
         : const EdgeInsets.only(right: 48, top: 4, bottom: 4);
 
@@ -36,6 +41,9 @@ class TranscriptionBubble extends StatelessWidget {
     } else if (isNotion) {
       // "System" bubble style - distinct (e.g. Orange/Tertiary)
       fillColor = Theme.of(context).colorScheme.tertiaryContainer.withOpacity(0.8);
+    } else if (isSummary) {
+       // Summary style - distinct (e.g. Surface Variant with outline?)
+       fillColor = Theme.of(context).colorScheme.surfaceContainerHigh;
     } else {
       // "Received" bubble style - neutral/surface
       fillColor = Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5);
@@ -64,8 +72,8 @@ class TranscriptionBubble extends StatelessWidget {
               topLeft: const Radius.circular(16),
               topRight: const Radius.circular(16),
               // Chat bubble tails logic
-              bottomLeft: isAi ? const Radius.circular(16) : const Radius.circular(4),
-              bottomRight: isAi ? const Radius.circular(4) : const Radius.circular(16),
+              bottomLeft: (isAi || isSummary) ? const Radius.circular(16) : const Radius.circular(4),
+              bottomRight: (isAi || isSummary) ? const Radius.circular(4) : const Radius.circular(16),
             ),
             border: isSelected
                 ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
@@ -75,7 +83,7 @@ class TranscriptionBubble extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min, // Important for chat bubbles
             children: [
-              if (isAi || isNotion)
+              if (isAi || isNotion || isSummary)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Row(
@@ -128,14 +136,36 @@ class TranscriptionBubble extends StatelessWidget {
                        );
                     }
                     
-                    return Text(
-                      displayText,
-                      maxLines: isAi ? 6 : null, // Limit AI bubbles to 6 lines (~150 words)
-                      overflow: isAi ? TextOverflow.ellipsis : null,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            height: 1.5,
-                            color: textColor,
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            displayText,
+                            maxLines: isAi ? 6 : null, // Limit AI bubbles to 6 lines (~150 words)
+                            overflow: isAi ? TextOverflow.ellipsis : null,
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                  height: 1.5,
+                                  color: textColor,
+                                  fontWeight: isSummary ? FontWeight.w600 : FontWeight.normal,
+                                ),
                           ),
+                        ),
+                        if (isSummary)
+                           GestureDetector(
+                             onTap: () {
+                                if (onToggleExpand != null) onToggleExpand!(segment.id);
+                             },
+                             child: Padding(
+                               padding: const EdgeInsets.only(left: 8.0),
+                               child: Icon(
+                                 segment.isExpanded ? Icons.expand_less : Icons.expand_more,
+                                 color: secondaryTextColor,
+                               ),
+                             ),
+                           ),
+                      ],
                     );
                   }
                 ),
@@ -150,12 +180,40 @@ class TranscriptionBubble extends StatelessWidget {
                           fontSize: 10,
                         ),
                   ),
-                  if (segment.isSynced)
-                     Padding(
-                       padding: const EdgeInsets.only(left: 4.0),
-                       child: Icon(Icons.cloud_done, size: 12, color: secondaryTextColor),
-                     ),
-                ],
+                   if (segment.isSynced)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4.0),
+                        child: Icon(Icons.cloud_done, size: 12, color: secondaryTextColor),
+                      ),
+                   // Diagnostics Badge
+                   if (showDiagnostics && segment.type == SegmentType.audio)
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: segment.confidence > 0.8 
+                              ? Colors.green.withOpacity(0.2) 
+                              : (segment.confidence > 0.5 ? Colors.orange.withOpacity(0.2) : Colors.red.withOpacity(0.2)),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: segment.confidence > 0.8 
+                                ? Colors.green 
+                                : (segment.confidence > 0.5 ? Colors.orange : Colors.red),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          "${(segment.confidence * 100).toInt()}%",
+                          style: TextStyle(
+                            color: segment.confidence > 0.8 
+                                ? Colors.green 
+                                : (segment.confidence > 0.5 ? Colors.orange : Colors.red),
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                 ],
               ),
             ],
           ),

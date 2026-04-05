@@ -57,9 +57,56 @@ class _BubbleLibraryPageState extends State<BubbleLibraryPage> {
           
           Consumer<TranscriptionViewModel>(
             builder: (context, vm, child) {
-              return ReorderableListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 80), // Added bottom padding for FAB
-                itemCount: vm.bubbles.length,
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                children: [
+                  // Global Settings Section
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: GlassContainer(
+                      borderRadius: BorderRadius.circular(16),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              "Global Settings",
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          SwitchListTile(
+                            title: const Text("Show Diagnostics"),
+                            subtitle: const Text("Display voice confidence scores"),
+                            value: vm.showDiagnostics,
+                            onChanged: (val) => vm.toggleDiagnostics(val),
+                            secondary: const Icon(Icons.show_chart),
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                          SwitchListTile(
+                            title: const Text("Enable Auto-Summaries"),
+                            subtitle: const Text("Automatically group and summarize segments"),
+                            value: vm.enableAutoSummary,
+                            onChanged: (val) => vm.toggleAutoSummary(val),
+                            secondary: const Icon(Icons.summarize_outlined),
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Draggable List
+                  ReorderableListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: EdgeInsets.zero,
+                    itemCount: vm.bubbles.length,
                 onReorder: (oldIndex, newIndex) {
                   vm.reorderBubbles(oldIndex, newIndex);
                 },
@@ -184,9 +231,11 @@ class _BubbleLibraryPageState extends State<BubbleLibraryPage> {
                     ),
                   );
                 },
-              );
-            },
-          ),
+              ),
+              ],
+            );
+          },
+        ),
         ],
       ),
     );
