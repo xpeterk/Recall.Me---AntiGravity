@@ -5,6 +5,7 @@ import '../../../../core/errors/failures.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../recall/data/local_database.dart';
 import '../domain/settings_repository.dart';
+import '../domain/dynamic_starter.dart';
 
 class NativeSettingsRepository implements SettingsRepository {
   final LocalDatabase _db;
@@ -139,6 +140,35 @@ class NativeSettingsRepository implements SettingsRepository {
       return const Right(null);
     } catch (e) {
       return Left(CacheFailure("DB Error: $e"));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> saveDynamicStarters(List<dynamic> startersData) async {
+    try {
+      final jsonList = startersData.cast<DynamicStarter>().map((s) => s.toJson()).toList();
+      await setPreference('custom_starters', jsonEncode(jsonList));
+      return const Right(null);
+    } catch (e) {
+      return Left(CacheFailure("Failed to save dynamic starters: $e"));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<dynamic>>> getDynamicStarters() async {
+    try {
+      final result = await getPreference('custom_starters');
+      return result.fold(
+        (f) => const Right([]), // Return empty list on failure/not found
+        (jsonString) {
+           if (jsonString == null || jsonString.toString().isEmpty) return const Right([]);
+           final List<dynamic> jsonList = jsonDecode(jsonString.toString());
+           final starters = jsonList.map((json) => DynamicStarter.fromJson(json)).toList();
+           return Right(starters);
+        }
+      );
+    } catch (e) {
+      return Left(CacheFailure("Failed to load dynamic starters: $e"));
     }
   }
 }

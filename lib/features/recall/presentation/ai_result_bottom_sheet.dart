@@ -92,177 +92,163 @@ class AiResultBottomSheet extends StatelessWidget {
                       
                       return Column(
                         children: [
-                          Expanded(
-                            child: PageView.builder(
-                              itemCount: responses.length,
-                              onPageChanged: (idx) => setState(() => currentPage = idx),
-                              itemBuilder: (context, index) {
-                                return SingleChildScrollView(
-                                  padding: const EdgeInsets.all(24),
-                                  child: MarkdownBody(
-                                    data: responses[index],
-                                    // Enable Selectable Text
-                                    selectable: true,
-                                    // Handle Links
-                                    onTapLink: (text, href, title) async {
-                                      if (href != null) {
-                                         final Uri url = Uri.parse(href);
-                                         if (await canLaunchUrl(url)) {
-                                            await launchUrl(url, mode: LaunchMode.externalApplication);
-                                         }
-                                      }
-                                    },
-                                    // Handle Images (Default builder is usually fine, but specifying it is safer)
-                                    imageBuilder: (uri, title, alt) {
-                                       return Center(
-                                         child: ClipRRect(
-                                            borderRadius: BorderRadius.circular(12),
-                                            child: Image.network(
-                                               uri.toString(),
-                                               errorBuilder: (ctx, err, stack) => const Icon(Icons.broken_image, size: 50, color: Colors.grey),
-                                            ),
-                                         ),
-                                       );
-                                    },
-                                    styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
-                                      p: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.6),
-                                      h1: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
-                                      h2: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                                      code: TextStyle(
-                                        backgroundColor: Colors.black26,
-                                        fontFamily: 'monospace', 
-                                        color: Theme.of(context).colorScheme.tertiary,
-                                      ),
-                                      codeblockDecoration: BoxDecoration(
-                                        color: Colors.black26, 
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          
-                          // Page Indicator
-                          if (responses.length > 1)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: List.generate(responses.length, (index) {
-                                  return Container(
-                                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: currentPage == index 
-                                          ? Theme.of(context).colorScheme.primary 
-                                          : Colors.white24,
-                                    ),
-                                  );
-                                }),
-                              ),
-                            ),
+                                      // Page Info & Tools Area (Moved to top)
+                                      if (!viewModel.isAiProcessing && responses.isNotEmpty)
+                                        Container(
+                                          padding: const EdgeInsets.only(top: 8, bottom: 8, left: 16, right: 16),
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(context).colorScheme.surface.withOpacity(0.5),
+                                            border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.1))),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: OutlinedButton.icon(
+                                                      onPressed: () {
+                                                        Clipboard.setData(ClipboardData(text: responses[currentPage]));
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          const SnackBar(content: Text("Copied to Clipboard")),
+                                                        );
+                                                      },
+                                                      icon: const Icon(Icons.copy, size: 18),
+                                                      label: const Text("Share Page"),
+                                                      style: OutlinedButton.styleFrom(
+                                                        foregroundColor: Colors.white,
+                                                        side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                                                        padding: const EdgeInsets.symmetric(vertical: 12),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: OutlinedButton.icon(
+                                                      onPressed: () {
+                                                        Clipboard.setData(ClipboardData(text: responses[currentPage]));
+                                                        viewModel.saveAiMemory("Quick Action", viewModel.aiResponse);
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          const SnackBar(content: Text("All Answers Saved & Page Copied")),
+                                                        );
+                                                      },
+                                                      icon: const Icon(Icons.save_alt, size: 18),
+                                                      label: const Text("Save All"),
+                                                      style: OutlinedButton.styleFrom(
+                                                        foregroundColor: Colors.white,
+                                                        side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                                                        padding: const EdgeInsets.symmetric(vertical: 12),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 12),
+                                              SizedBox(
+                                                height: 40,
+                                                child: ListView(
+                                                  scrollDirection: Axis.horizontal,
+                                                  children: [
+                                                    _buildFollowUpButton(context, viewModel, "Deep Dive 🧠", () => viewModel.deepDiveText(), isPrimary: true),
+                                                    const SizedBox(width: 8),
+                                                    _buildFollowUpButton(context, viewModel, "Simplify 👶", () => viewModel.runFollowUp("Simplified", "Rewrite the analysis in simple, easy-to-understand language.")),
+                                                    const SizedBox(width: 8),
+                                                    _buildFollowUpButton(context, viewModel, "Key Points 🔑", () => viewModel.runFollowUp("Key Takeaways", "Extract the 3 most important points as a bulleted list.")),
+                                                    const SizedBox(width: 8),
+                                                    _buildFollowUpButton(context, viewModel, "Critique ⚖️", () => viewModel.runFollowUp("Critique", "Identify any potential flaws or alternative perspectives.")),
+                                                    const SizedBox(width: 8),
+                                                    _buildFollowUpButton(context, viewModel, "Español 🇪🇸", () => viewModel.runFollowUp("Traducción", "Translate the analysis into Spanish.")),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
 
-                          if (!viewModel.isAiProcessing && responses.isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.surface.withOpacity(0.5),
-                                border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1))),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Row(
-                                    children: [
                                       Expanded(
-                                        child: OutlinedButton.icon(
-                                          onPressed: () {
-                                            // Action relies on current Page
-                                            Clipboard.setData(ClipboardData(text: responses[currentPage]));
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              const SnackBar(content: Text("Copied to Clipboard")),
+                                        child: PageView.builder(
+                                          itemCount: responses.length,
+                                          onPageChanged: (idx) => setState(() => currentPage = idx),
+                                          itemBuilder: (context, index) {
+                                            return SingleChildScrollView(
+                                              padding: const EdgeInsets.all(24),
+                                              child: MarkdownBody(
+                                                data: responses[index],
+                                                selectable: true,
+                                                onTapLink: (text, href, title) async {
+                                                  if (href != null) {
+                                                     final Uri url = Uri.parse(href);
+                                                     if (await canLaunchUrl(url)) {
+                                                        await launchUrl(url, mode: LaunchMode.externalApplication);
+                                                     }
+                                                  }
+                                                },
+                                                imageBuilder: (uri, title, alt) {
+                                                   return Center(
+                                                     child: ClipRRect(
+                                                        borderRadius: BorderRadius.circular(12),
+                                                        child: Image.network(
+                                                           uri.toString(),
+                                                           errorBuilder: (ctx, err, stack) => const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                                                        ),
+                                                     ),
+                                                   );
+                                                },
+                                                styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+                                                  p: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.6),
+                                                  h1: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
+                                                  h2: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                                                  code: TextStyle(
+                                                    backgroundColor: Colors.black26,
+                                                    fontFamily: 'monospace', 
+                                                    color: Theme.of(context).colorScheme.tertiary,
+                                                  ),
+                                                  codeblockDecoration: BoxDecoration(
+                                                    color: Colors.black26, 
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                ),
+                                              ),
                                             );
                                           },
-                                          icon: const Icon(Icons.copy, size: 18),
-                                          label: const Text("Share Page"),
-                                          style: OutlinedButton.styleFrom(
-                                            foregroundColor: Colors.white,
-                                            side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                                            padding: const EdgeInsets.symmetric(vertical: 12),
-                                          ),
                                         ),
                                       ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: OutlinedButton.icon(
-                                          onPressed: () {
-                                            // Save entire JSON bundle if saving "The Result", 
-                                            // OR just this page? 
-                                            // "Save & Share" usually implies saving the whole transaction.
-                                            // Let's copy CURRENT page, but save ALL (via generic saveAiMemory which saves internal state).
-                                            Clipboard.setData(ClipboardData(text: responses[currentPage]));
-                                            
-                                            // Note: saveAiMemory uses _aiResponse string which is already JSONified in VM if multi.
-                                            // We probably want to pass the formatted JSON if we are saving explicitly.
-                                            // The VM's saveAiMemory takes a String 'content'.
-                                            // If we pass current page, we lose others.
-                                            // Let's pass the FULL VM aiResponse (JSON) so database has it all.
-                                            viewModel.saveAiMemory("Quick Action", viewModel.aiResponse);
-                                            
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              const SnackBar(content: Text("All Answers Saved & Page Copied")),
-                                            );
-                                          },
-                                          icon: const Icon(Icons.save_alt, size: 18),
-                                          label: const Text("Save All"),
-                                          style: OutlinedButton.styleFrom(
-                                            foregroundColor: Colors.white,
-                                            side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                      
+                                      // Page Indicator
+                                      if (responses.length > 1)
+                                        Padding(
+                                          padding: const EdgeInsets.only(bottom: 8),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: List.generate(responses.length, (index) {
+                                              return Container(
+                                                margin: const EdgeInsets.symmetric(horizontal: 4),
+                                                width: 8,
+                                                height: 8,
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  color: currentPage == index 
+                                                      ? Theme.of(context).colorScheme.primary 
+                                                      : Colors.white24,
+                                                ),
+                                              );
+                                            }),
                                           ),
                                         ),
-                                      ),
                                     ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  const SizedBox(height: 16),
-                                  SizedBox(
-                                    height: 40,
-                                    child: ListView(
-                                      scrollDirection: Axis.horizontal,
-                                      children: [
-                                        _buildFollowUpButton(context, viewModel, "Deep Dive 🧠", () => viewModel.deepDiveText(), isPrimary: true),
-                                        const SizedBox(width: 8),
-                                        _buildFollowUpButton(context, viewModel, "Simplify 👶", () => viewModel.runFollowUp("Simplified", "Rewrite the analysis in simple, easy-to-understand language.")),
-                                        const SizedBox(width: 8),
-                                        _buildFollowUpButton(context, viewModel, "Key Points 🔑", () => viewModel.runFollowUp("Key Takeaways", "Extract the 3 most important points as a bulleted list.")),
-                                        const SizedBox(width: 8),
-                                        _buildFollowUpButton(context, viewModel, "Critique ⚖️", () => viewModel.runFollowUp("Critique", "Identify any potential flaws or alternative perspectives.")),
-                                        const SizedBox(width: 8),
-                                        _buildFollowUpButton(context, viewModel, "Español 🇪🇸", () => viewModel.runFollowUp("Traducción", "Translate the analysis into Spanish.")),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        );
-                      }
-                    );
-                  }
+                                  );
+                                }
+                              );
+                            }
+                          ),
+                        ),
+                      ],
+                    ),
                 ),
-              ),
-            ],
-          ),
-      ),
-    );
-  }
-  Widget _buildFollowUpButton(BuildContext context, TranscriptionViewModel vm, String label, VoidCallback onTap, {bool isPrimary = false}) {
+              );
+            }
+            Widget _buildFollowUpButton(BuildContext context, TranscriptionViewModel vm, String label, VoidCallback onTap, {bool isPrimary = false}) {
+
     return ElevatedButton(
       onPressed: onTap,
       style: ElevatedButton.styleFrom(

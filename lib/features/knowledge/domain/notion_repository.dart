@@ -25,4 +25,7 @@ abstract class NotionRepository {
 
   /// Imports specific pages into the local database.
   Future<Either<Failure, NotionSyncStats>> importPages(List<NotionPage> pages, String apiKey);
+
+  /// Fetches the most recently created page from a specific database, parsing custom schema.
+  Future<Either<Failure, String>> getLatestPageFromDatabase(String databaseId);
 }

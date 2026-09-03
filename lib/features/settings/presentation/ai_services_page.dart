@@ -65,6 +65,13 @@ class _AiServicesPageState extends State<AiServicesPage> {
       (key) => _notionController.text = key,
     );
 
+    // Load Notion Root Page Link
+    final rootPageResult = await repo.getPreference('notion_root_page');
+    rootPageResult.fold(
+      (_) => null,
+      (val) => _notionRootPageController.text = val,
+    );
+
     setState(() => _isLoading = false);
   }
 
@@ -93,9 +100,13 @@ class _AiServicesPageState extends State<AiServicesPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("AI Services Configuration")),
-      body: Stack(
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        _saveKeys();
+      },
+      child: Scaffold(
+        appBar: AppBar(title: const Text("AI Services Configuration")),
+        body: Stack(
         children: [
            // Background
            Container(
@@ -241,8 +252,10 @@ class _AiServicesPageState extends State<AiServicesPage> {
                                  
                                  if (!context.mounted) return;
                                  if (error == null) {
+                                   await _saveKeys();
+                                   if (!context.mounted) return;
                                    ScaffoldMessenger.of(context).showSnackBar(
-                                     const SnackBar(content: Text("✅ Connection Successful!")),
+                                     const SnackBar(content: Text("✅ Connection Successful & Saved!")),
                                    );
                                  } else {
                                    ScaffoldMessenger.of(context).showSnackBar(
@@ -598,7 +611,7 @@ class _AiServicesPageState extends State<AiServicesPage> {
              ),
         ],
       ),
-    );
+    ));
   }
 
   Widget _buildSectionHeader(BuildContext context, String title) {
@@ -643,12 +656,16 @@ class _AiServicesPageState extends State<AiServicesPage> {
                           itemCount: vm.availablePages.length,
                           itemBuilder: (context, index) {
                             final page = vm.availablePages[index];
+                            final isPreviouslySynced = vm.syncedRootIds.contains(page.id);
                             return CheckboxListTile(
                               title: Text(page.title),
-                              subtitle: Text(page.lastEdited.toString().split('.')[0]),
+                              subtitle: Text("${page.lastEdited.toString().split('.')[0]}${isPreviouslySynced ? ' • Synced' : ''}"),
                               value: page.isSelected,
                               onChanged: (val) => vm.togglePageSelection(page.id),
-                              secondary: const Icon(Icons.article_outlined),
+                              secondary: Icon(
+                                page.isDatabase ? Icons.dns : Icons.article_outlined,
+                                color: isPreviouslySynced ? Colors.green : null,
+                              ),
                             );
                           },
                         ),
@@ -732,7 +749,12 @@ class _AiServicesPageState extends State<AiServicesPage> {
       ];
     } else {
       return [
-        // Gemini 3 (Future/Exp)
+        // Gemini 3 Series
+        {'id': 'gemini-3.7-flash', 'name': 'Gemini 3.7 Flash (Latest)'},
+        {'id': 'gemini-3.6-flash', 'name': 'Gemini 3.6 Flash'},
+        {'id': 'gemini-3.5-flash', 'name': 'Gemini 3.5 Flash'},
+        {'id': 'gemini-3.5-flash-lite', 'name': 'Gemini 3.5 Flash-Lite'},
+        {'id': 'gemini-3.1-pro', 'name': 'Gemini 3.1 Pro (Flagship)'},
         {'id': 'gemini-3.0-pro-exp', 'name': 'Gemini 3.0 Pro (Exp)'},
         {'id': 'gemini-3.0-flash-exp', 'name': 'Gemini 3.0 Flash (Exp)'},
         

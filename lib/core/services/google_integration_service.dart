@@ -142,4 +142,72 @@ class GoogleIntegrationService {
       return ["Error fetching events: $e"];
     }
   }
+
+  // Calendar: Fetch Upcoming Birthdays and Holidays
+  Future<List<String>> getUpcomingSpecials({int daysAhead = 14}) async {
+    if (_authClient == null) return [];
+
+    try {
+      final calendar = CalendarApi(_authClient!);
+      final now = DateTime.now().toUtc();
+      final timeMax = now.add(Duration(days: daysAhead));
+      
+      List<String> specials = [];
+
+      // 1. Get all calendars to find Holiday feeds
+      final calendarListList = await calendar.calendarList.list();
+      List<String> calendarIdsToSearch = ["primary"]; // Always search primary
+      
+      if (calendarListList.items != null) {
+         for (var cal in calendarListList.items!) {
+            final summary = cal.summary?.toLowerCase() ?? "";
+            if (summary.contains("holiday")) {
+                if (cal.id != null) {
+                   calendarIdsToSearch.add(cal.id!);
+                }
+            }
+         }
+      }
+
+      // 2. Fetch events from identified calendars
+      for (var calId in calendarIdsToSearch) {
+         try {
+             final events = await calendar.events.list(
+                calId,
+                timeMin: now,
+                timeMax: timeMax,
+                singleEvents: true,
+                orderBy: "startTime",
+             );
+
+             if (events.items != null) {
+                for (var event in events.items!) {
+                   final title = event.summary ?? "";
+                   final titleLower = title.toLowerCase();
+                   
+                   bool isHolidayCal = calId != "primary";
+                   bool isBirthday = titleLower.contains("birthday") || titleLower.contains("bday") || title.contains("🎂");
+
+                   if (isHolidayCal || isBirthday) {
+                      final start = event.start?.dateTime ?? event.start?.date;
+                      final dateStr = start != null ? "${start.month}/${start.day}" : "Upcoming";
+                      
+                      String prefix = isHolidayCal ? "Holiday" : "Birthday";
+                      if (isBirthday) prefix = "Birthday"; 
+
+                      specials.add("Approaching $prefix: $title ($dateStr)");
+                   }
+                }
+             }
+         } catch (e) {
+            print("Error fetching from calendar $calId: $e");
+         }
+      }
+      
+      return specials;
+    } catch (e) {
+      print("Error fetching specials: $e");
+      return [];
+    }
+  }
 }

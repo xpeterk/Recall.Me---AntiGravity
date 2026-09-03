@@ -10,27 +10,33 @@ import 'ai_service.dart';
 class GeminiAiService implements AiService {
   String _apiKey;
 
-  GeminiAiService() : _apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+  GeminiAiService({String? apiKey}) : _apiKey = (apiKey ?? dotenv.env['GEMINI_API_KEY'] ?? '').trim();
 
   void setApiKey(String key) {
-    _apiKey = key;
+    _apiKey = key.trim();
   }
 
+  String get apiKey => _apiKey;
+
   String _getModelName(String? modelAlias) {
-    if (modelAlias == null) return 'gemini-2.0-flash-exp';
+    if (modelAlias == null || modelAlias.isEmpty) return 'gemini-3.5-flash';
     
     // Allow passing full model names directly if they contain 'gemini'
     if (modelAlias.toLowerCase().contains('gemini')) return modelAlias;
 
     switch (modelAlias) {
-      case 'pro': return 'gemini-1.5-pro';
+      case 'pro': return 'gemini-3.1-pro-preview';
       case 'flash': 
-      default: return 'gemini-2.0-flash-exp';
+      default: return 'gemini-3.5-flash';
     }
   }
 
   @override
   Future<Either<Failure, String>> generate(String prompt, {String? model, bool useSearch = false}) async {
+    if (_apiKey.isEmpty) {
+      return const Left(ServerFailure("Gemini API Key is not set. Please add it in Settings > AI Services."));
+    }
+
     try {
       final modelName = _getModelName(model);
       
@@ -39,18 +45,14 @@ class GeminiAiService implements AiService {
          return Right(result);
       }
       
-      final tools = null;
-
       final genModel = GenerativeModel(
         model: modelName, 
         apiKey: _apiKey,
-        tools: tools,
       );
       final content = [Content.text(prompt)];
       
       final response = await genModel.generateContent(content);
       
-      // Handle potential search grounding metadata in response if needed (future)
       if (response.text != null) {
         return Right(response.text!);
       } else {
@@ -58,7 +60,7 @@ class GeminiAiService implements AiService {
       }
     } catch (e) {
       if (e.toString().contains("404")) {
-         return Left(ServerFailure("Model $model not found (404). It might be experimental or require a different API version."));
+         return Left(ServerFailure("Model $model not found (404). Please check the model name in Settings."));
       }
       return Left(ServerFailure(e.toString()));
     }
@@ -66,6 +68,11 @@ class GeminiAiService implements AiService {
 
   @override
   Stream<Either<Failure, String>> generateStream(String prompt, {String? model, bool useSearch = false}) async* {
+    if (_apiKey.isEmpty) {
+      yield const Left(ServerFailure("Gemini API Key is not set. Please add it in Settings > AI Services."));
+      return;
+    }
+
     try {
       final modelName = _getModelName(model);
       
@@ -75,12 +82,9 @@ class GeminiAiService implements AiService {
          return;
       }
 
-      final tools = null;
-
       final genModel = GenerativeModel(
         model: modelName, 
         apiKey: _apiKey,
-        tools: tools,
       );
       final content = [Content.text(prompt)];
       
@@ -92,10 +96,9 @@ class GeminiAiService implements AiService {
         }
       }
     } catch (e) {
-       yield Left(ServerFailure("Stream Error: $e"));
+       yield Left(ServerFailure("Error: $e"));
     }
   }
-
 
   @override
   Future<List<String>> listModels() async {
@@ -103,10 +106,8 @@ class GeminiAiService implements AiService {
       return ["Error: API Key not set"];
     }
     
-    // Using raw REST API for listing models as it's reliable for discovery
     try {
       final response = await http.get(
-        // Use v1beta. If 'Gemini 3' fails, it's because it doesn't exist yet!
         Uri.parse('https://generativelanguage.googleapis.com/v1beta/models?key=$_apiKey'),
       );
 
@@ -116,7 +117,7 @@ class GeminiAiService implements AiService {
           final List<dynamic> models = data['models'];
           return models
               .map<String>((m) => (m['name'] as String).replaceFirst('models/', ''))
-              .where((id) => id.contains('gemini')) // Filter generic PaLM models if any
+              .where((id) => id.contains('gemini'))
               .toList();
         }
         return ["No models found in response"];
@@ -127,6 +128,7 @@ class GeminiAiService implements AiService {
       return ["Exception: $e"];
     }
   }
+
   Future<String> _generateRaw(String prompt, String modelName) async {
     final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$_apiKey');
     
@@ -147,7 +149,6 @@ class GeminiAiService implements AiService {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      // Parse Candidates
       if (data['candidates'] != null && (data['candidates'] as List).isNotEmpty) {
         final candidate = data['candidates'][0];
         if (candidate['content'] != null && candidate['content']['parts'] != null) {

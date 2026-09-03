@@ -69,15 +69,83 @@ class RecallShelf extends StatelessWidget {
           // Action Icons
           SizedBox(
             height: 40,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Stack(
               children: [
-                ...bubbles.where((b) => b.isEnabled).map((bubble) => 
-                   Padding(
-                     padding: const EdgeInsets.only(right: 16),
-                     child: _buildActionItem(context, bubble, () => onBubbleTap(bubble)),
-                   )
+                ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.only(left: 16, right: 48),
+                  children: [
+                    // Speak Prompt Action Bubble
+                    Padding(
+                      padding: const EdgeInsets.only(right: 16),
+                      child: _buildActionItem(
+                        context, 
+                        AiBubble(
+                          id: 'action_speak_prompt', 
+                          name: 'Speak', 
+                          icon: '🎤', 
+                          color: const Color(0xFFF44336), // Colors.red
+                          systemPrompt: ''
+                        ), 
+                        () => onBubbleTap(AiBubble(
+                          id: 'action_speak_prompt', 
+                          name: 'Speak', 
+                          icon: '🎤', 
+                          color: const Color(0xFFF44336), 
+                          systemPrompt: ''
+                        ))
+                      ),
+                    ),
+                    ...bubbles.where((b) => b.isEnabled).map((bubble) => 
+                       Padding(
+                         padding: const EdgeInsets.only(right: 16),
+                         child: _buildActionItem(context, bubble, () => onBubbleTap(bubble)),
+                       )
+                    ),
+                  ],
+                ),
+                
+                // Right-side visual fade clip overlay
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 48,
+                  child: IgnorePointer(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Theme.of(context).colorScheme.surface.withOpacity(0.0),
+                            Theme.of(context).colorScheme.surface.withOpacity(0.95),
+                          ],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                
+                // Next Chevron Indicator
+                Positioned(
+                  right: 8,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.black26,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.chevron_right, 
+                        size: 16, 
+                        color: Colors.white70
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),

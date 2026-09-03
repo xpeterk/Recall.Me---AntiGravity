@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../domain/transcription_segment.dart';
 
 class TranscriptionBubble extends StatelessWidget {
@@ -25,38 +27,51 @@ class TranscriptionBubble extends StatelessWidget {
     final isNotion = segment.type == SegmentType.notion;
     final isSummary = segment.type == SegmentType.summary;
     
-    // Alignment
-    final alignment = (isAi || isSummary) ? Alignment.centerRight : Alignment.centerLeft;
+    // Swap alignment to match messaging standards (User: Right, AI: Left)
+    final alignment = (isAi || isSummary) ? Alignment.centerLeft : Alignment.centerRight;
     final margin = (isAi || isSummary)
-        ? const EdgeInsets.only(left: 48, top: 4, bottom: 4) 
-        : const EdgeInsets.only(right: 48, top: 4, bottom: 4);
+        ? const EdgeInsets.only(right: 48, top: 8, bottom: 8) 
+        : const EdgeInsets.only(left: 48, top: 8, bottom: 8);
 
-    // Color Palette (Google Messages Style)
-    Color fillColor;
+    // Color Palette (Mockup Style)
+    BoxDecoration decoration;
     if (isSelected) {
-      fillColor = Theme.of(context).colorScheme.primary.withOpacity(0.4);
+      decoration = BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2),
+      );
     } else if (isAi) {
-      // "Sent" bubble style - more vibrant/solid
-      fillColor = Theme.of(context).colorScheme.primaryContainer;
-    } else if (isNotion) {
-      // "System" bubble style - distinct (e.g. Orange/Tertiary)
-      fillColor = Theme.of(context).colorScheme.tertiaryContainer.withOpacity(0.8);
+      // Mockup Purple Card Style
+      decoration = BoxDecoration(
+        color: const Color(0xFF140F26), // Deep purple/black card
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF4F46E5).withOpacity(0.8), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4F46E5).withOpacity(0.15),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      );
     } else if (isSummary) {
-       // Summary style - distinct (e.g. Surface Variant with outline?)
-       fillColor = Theme.of(context).colorScheme.surfaceContainerHigh;
+       decoration = BoxDecoration(
+         color: const Color(0xFF161619),
+         borderRadius: BorderRadius.circular(16),
+         border: Border.all(color: Colors.white10, width: 1),
+       );
     } else {
-      // "Received" bubble style - neutral/surface
-      fillColor = Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5);
+      // User Speech Bubble (Mockup Slate Blue Card)
+      decoration = BoxDecoration(
+        color: const Color(0xFF131D2E), // Deep slate blue
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.8), width: 1.5),
+      );
     }
-    
-    final textColor = isSelected 
-        ? Colors.white 
-        : (isAi 
-            ? Theme.of(context).colorScheme.onPrimaryContainer 
-            : (isNotion 
-                ? Theme.of(context).colorScheme.onTertiaryContainer 
-                : Colors.white));
-    final secondaryTextColor = textColor.withOpacity(0.7);
+
+    final textColor = Colors.white;
+    final secondaryTextColor = Colors.white70;
 
     return GestureDetector(
       onTap: () => onTap(segment.id),
@@ -65,54 +80,123 @@ class TranscriptionBubble extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           margin: margin,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: fillColor,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(16),
-              topRight: const Radius.circular(16),
-              // Chat bubble tails logic
-              bottomLeft: (isAi || isSummary) ? const Radius.circular(16) : const Radius.circular(4),
-              bottomRight: (isAi || isSummary) ? const Radius.circular(4) : const Radius.circular(16),
-            ),
-            border: isSelected
-                ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
-                : null,
-          ),
+          padding: const EdgeInsets.all(16),
+          decoration: decoration,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min, // Important for chat bubbles
+            mainAxisSize: MainAxisSize.min,
             children: [
-              if (isAi || isNotion || isSummary)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                       if (isNotion)
-                          const Icon(Icons.book, size: 14, color: Colors.white70) // Manual icon for Notion
-                       else if (segment.bubbleIcon != null)
-                          Text(segment.bubbleIcon!, style: const TextStyle(fontSize: 12)) // Emoji icon
-                       else
-                          Icon(Icons.auto_awesome, size: 14, color: secondaryTextColor),
-
-                      const SizedBox(width: 6),
-                      Text(
-                        isNotion 
-                            ? "Notion Context" 
-                            : (segment.bubbleName ?? "AI Insight"),
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: secondaryTextColor,
-                          fontWeight: FontWeight.bold,
+              // User Speech specific checklist header (Mockup selection state style)
+              if (!isAi && !isSummary && !isNotion)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      width: 16,
+                      height: 16,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF3B82F6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.check, size: 10, color: Colors.white),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        segment.text,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: textColor,
+                          fontWeight: FontWeight.w500,
+                          height: 1.4,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
+
+              // AI Header Row (Mockup Style)
+              if (isAi) ...[
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4F46E5).withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.auto_awesome, size: 12, color: Color(0xFF818CF8)),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      (segment.bubbleName ?? "ASK AI").toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF818CF8),
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4F46E5).withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.star, size: 10, color: Color(0xFFFFD700)),
+                          const SizedBox(width: 4),
+                          Text(
+                            segment.confidence.toStringAsFixed(2),
+                            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // Summary Header
+              if (isSummary) ...[
+                Row(
+                  children: [
+                    const Icon(Icons.summarize_outlined, size: 14, color: Colors.white70),
+                    const SizedBox(width: 6),
+                    Text(
+                      "SUMMARY",
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: secondaryTextColor,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+
+              // Content Body rendering (Only if not user speech since that was rendered in Row above)
+              if (isAi || isSummary || isNotion)
                 Builder(
                   builder: (context) {
                     String displayText = segment.text;
                     bool isMulti = displayText.trim().startsWith('{"responses":');
+                    
+                    bool hasLongContent = displayText.contains('===LONG_CONTENT===');
+                    if (hasLongContent) {
+                       final parts = displayText.split('===LONG_CONTENT===');
+                       if (segment.isExpanded && parts.length > 1) {
+                           displayText = "${parts[0].trim()}\n\n${parts[1].trim()}";
+                       } else {
+                           displayText = "${parts[0].trim()}... [[more]](expand:${segment.id})";
+                       }
+                    }
 
                     if (isMulti) {
                        return Column(
@@ -141,18 +225,31 @@ class TranscriptionBubble extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: Text(
-                            displayText,
-                            maxLines: isAi ? 6 : null, // Limit AI bubbles to 6 lines (~150 words)
-                            overflow: isAi ? TextOverflow.ellipsis : null,
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                  height: 1.5,
-                                  color: textColor,
-                                  fontWeight: isSummary ? FontWeight.w600 : FontWeight.normal,
-                                ),
+                          child: MarkdownBody(
+                            data: displayText,
+                            onTapLink: (text, href, title) async {
+                              if (href != null) {
+                                if (href.startsWith('expand:')) {
+                                  final segId = href.substring(7);
+                                  if (onToggleExpand != null) onToggleExpand!(segId);
+                                } else {
+                                  final uri = Uri.parse(href);
+                                  if (await canLaunchUrl(uri)) {
+                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                  }
+                                }
+                              }
+                            },
+                            styleSheet: MarkdownStyleSheet(
+                              p: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                height: 1.5,
+                                color: textColor,
+                              ),
+                              a: TextStyle(color: Theme.of(context).colorScheme.primary, decoration: TextDecoration.underline),
+                            ),
                           ),
                         ),
-                        if (isSummary)
+                        if (isSummary || hasLongContent)
                            GestureDetector(
                              onTap: () {
                                 if (onToggleExpand != null) onToggleExpand!(segment.id);
@@ -169,51 +266,104 @@ class TranscriptionBubble extends StatelessWidget {
                     );
                   }
                 ),
-              const SizedBox(height: 4),
+
+              // Sources footer
+              if (segment.sourceUrl != null && segment.sourceUrl!.isNotEmpty) ...[
+                 const SizedBox(height: 12),
+                 const Divider(color: Colors.white10, height: 1),
+                 const SizedBox(height: 8),
+                 Row(
+                   children: [
+                     const Text(
+                       "sources  ",
+                       style: TextStyle(fontSize: 10, color: Color(0xFF818CF8), fontWeight: FontWeight.w500),
+                     ),
+                     InkWell(
+                       onTap: () async {
+                          final uri = Uri.parse(segment.sourceUrl!);
+                          if (await canLaunchUrl(uri)) {
+                             await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          }
+                       },
+                       borderRadius: BorderRadius.circular(12),
+                       child: Container(
+                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                         decoration: BoxDecoration(
+                           color: const Color(0xFF4F46E5).withOpacity(0.2),
+                           borderRadius: BorderRadius.circular(12),
+                           border: Border.all(color: const Color(0xFF4F46E5).withOpacity(0.5)),
+                         ),
+                         child: Row(
+                           mainAxisSize: MainAxisSize.min,
+                           children: [
+                             if (segment.sourceUrl!.contains("notion.so") || segment.sourceUrl!.contains("notion.site"))
+                               Image.asset(
+                                 'assets/images/notion_logo.png',
+                                 width: 12,
+                                 height: 12,
+                                 errorBuilder: (_, __, ___) => const Icon(Icons.article, size: 12, color: Colors.white70),
+                               )
+                             else
+                               const Icon(Icons.language, size: 12, color: Colors.white70),
+                             const SizedBox(width: 6),
+                             Text(
+                               segment.contextTopic ?? "Source Link",
+                               style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600),
+                             ),
+                           ],
+                         ),
+                       ),
+                     ),
+                   ],
+                 ),
+              ],
+
+              const SizedBox(height: 6),
+              // Timestamp and Synced state
               Row(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  if (showDiagnostics && !isAi && !isSummary && !isNotion) ...[
+                     Container(
+                       margin: const EdgeInsets.only(right: 8),
+                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                       decoration: BoxDecoration(
+                         color: segment.confidence > 0.8 
+                             ? Colors.green.withOpacity(0.2) 
+                             : (segment.confidence > 0.5 ? Colors.orange.withOpacity(0.2) : Colors.red.withOpacity(0.2)),
+                         borderRadius: BorderRadius.circular(4),
+                         border: Border.all(
+                           color: segment.confidence > 0.8 
+                               ? Colors.green 
+                               : (segment.confidence > 0.5 ? Colors.orange : Colors.red),
+                           width: 1,
+                         ),
+                       ),
+                       child: Text(
+                         "${(segment.confidence * 100).toInt()}%",
+                         style: TextStyle(
+                           color: segment.confidence > 0.8 
+                               ? Colors.green 
+                               : (segment.confidence > 0.5 ? Colors.orange : Colors.red),
+                           fontSize: 8,
+                           fontWeight: FontWeight.bold,
+                         ),
+                       ),
+                     ),
+                  ],
                   Text(
                     "${segment.timestamp.hour}:${segment.timestamp.minute.toString().padLeft(2, '0')}",
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: secondaryTextColor,
-                          fontSize: 10,
+                          color: secondaryTextColor.withOpacity(0.5),
+                          fontSize: 9,
                         ),
                   ),
-                   if (segment.isSynced)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4.0),
-                        child: Icon(Icons.cloud_done, size: 12, color: secondaryTextColor),
-                      ),
-                   // Diagnostics Badge
-                   if (showDiagnostics && segment.type == SegmentType.audio)
-                      Container(
-                        margin: const EdgeInsets.only(left: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: segment.confidence > 0.8 
-                              ? Colors.green.withOpacity(0.2) 
-                              : (segment.confidence > 0.5 ? Colors.orange.withOpacity(0.2) : Colors.red.withOpacity(0.2)),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                            color: segment.confidence > 0.8 
-                                ? Colors.green 
-                                : (segment.confidence > 0.5 ? Colors.orange : Colors.red),
-                            width: 1,
-                          ),
-                        ),
-                        child: Text(
-                          "${(segment.confidence * 100).toInt()}%",
-                          style: TextStyle(
-                            color: segment.confidence > 0.8 
-                                ? Colors.green 
-                                : (segment.confidence > 0.5 ? Colors.orange : Colors.red),
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                 ],
+                  if (segment.isSynced)
+                     Padding(
+                       padding: const EdgeInsets.only(left: 4.0),
+                       child: Icon(Icons.cloud_done, size: 10, color: secondaryTextColor.withOpacity(0.5)),
+                     ),
+                ],
               ),
             ],
           ),

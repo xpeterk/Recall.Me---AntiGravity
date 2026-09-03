@@ -37,30 +37,19 @@ class NativeNotionRepository implements NotionRepository {
 
       // V4: Root Page Scoping
       if (rootPageId != null && rootPageId.isNotEmpty) {
-           // Extract ID from URL if needed (Simple regex or exact match)
-           // Allow user to paste full link or ID.
            String cleanId = rootPageId;
-           // If it's a URL, grab the last 32 chars roughly or use regex
            final uri = Uri.tryParse(rootPageId);
            if (uri != null && uri.pathSegments.isNotEmpty) {
                final lastSegment = uri.pathSegments.last;
-               // Standard Notion ID is at end of dash often: name-ID
                final parts = lastSegment.split('-');
                if (parts.last.length == 32) {
                    cleanId = parts.last;
                } 
-               // Or if just ID (32 hex)
            }
-           // Use the regex for safety: [a-f0-9]{32}
            final match = RegExp(r'[a-f0-9]{32}').firstMatch(rootPageId);
            if (match != null) cleanId = match.group(0)!;
            
            print("DEBUG: Scoping Notion Search to Root: $cleanId");
-           
-           // Fetch Children instead of Search
-           // reusing our recursive helper logic from importPages but we need to duplicate or expose it.
-           // Since fetchChildDatabaseRows is inside importPages, we'll write a similar one here (or refactor).
-           // Let's write inline for safety.
            
            final url = Uri.parse('https://api.notion.com/v1/blocks/$cleanId/children');
            final response = await _client.get(url, headers: {
@@ -74,37 +63,32 @@ class NativeNotionRepository implements NotionRepository {
               
               final pages = <NotionPage>[];
               for (var block in results) {
-                 // We want CHILD PAGES or CHILD DATABASES
-                 // (These are the "Folders" or "Tables" the user sees)
                  if (block['type'] == 'child_page') {
                     final title = block['child_page']['title'] ?? "Untitled Page";
                     pages.add(NotionPage(
                         id: block['id'], 
                         title: title, 
                         url: "https://notion.so/${block['id'].replaceAll('-', '')}", 
-                        lastEdited: DateTime.now() // formatting limitation, children endpoint doesn't give edited time. Use Now or fetch?
-                        // Actually, for "Select Pages" list, timestamp isn't critical, but might be nice.
-                        // We can stick with Now() or leave null if nullable.
+                        lastEdited: DateTime.now(),
+                        isDatabase: false,
                     ));
                  } else if (block['type'] == 'child_database') {
-                     final title = block['child_database']['title'] ?? "Untitled Database";
-                     pages.add(NotionPage(
+                      final title = block['child_database']['title'] ?? "Untitled Database";
+                      pages.add(NotionPage(
                         id: block['id'], 
                         title: title, 
                         url: "https://notion.so/${block['id'].replaceAll('-', '')}", 
-                        lastEdited: DateTime.now()
+                        lastEdited: DateTime.now(),
+                        isDatabase: true,
                     ));
                  }
               }
               return Right(pages);
            }
-           // If fail (e.g., 404), fall back to global? Or return error?
-           // better to return error so user knows ID is wrong
-           // However, for robustness, if empty, maybe fallback.
-           // Let's stick to returning Scoped results.
+           return Left(ServerFailure("Notion block children API failed: ${response.statusCode}"));
       }
 
-      // Default Global Search (V3 Filtered)
+      // Default Global Search (V4: Fetch both pages and databases, filter out pages inside databases)
       final response = await _client.post(
         Uri.parse('https://api.notion.com/v1/search'),
         headers: {
@@ -113,10 +97,6 @@ class NativeNotionRepository implements NotionRepository {
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'filter': {
-            'value': 'page',
-            'property': 'object'
-          },
           'sort': {
             'direction': 'descending',
             'timestamp': 'last_edited_time'
@@ -130,58 +110,64 @@ class NativeNotionRepository implements NotionRepository {
         final results = data['results'] as List;
         final pagesMap = <String, NotionPage>{}; // Use Map for deduplication
 
-        for (var page in results) {
-          // 1. Skip Archived (Trash) pages
-          if (page['archived'] == true) continue;
+        for (var item in results) {
+          if (item['archived'] == true) continue;
 
-          // Extract Title
-          String title = "Untitled Page";
-          try {
-             final props = page['properties'];
-             // Find 'title' type property
-             for (var key in props.keys) {
-               if (props[key]['type'] == 'title') {
-                 final titleList = props[key]['title'] as List;
-                 if (titleList.isNotEmpty) {
-                   title = titleList[0]['plain_text'];
-                 }
-               }
+          final isDb = item['object'] == 'database';
+          
+          // Skip pages inside databases (user request)
+          if (!isDb) {
+             if (item['parent'] != null && item['parent']['type'] == 'database_id') {
+                continue;
              }
-          } catch (e) {
-            // Fallback for title
           }
 
-          // 2. Add to Map (Last Edited Sort ensures we arguably get best version, 
-          //    but duplicates usually have same ID). 
-          //    We use putIfAbsent to keep the first one found (filtering logic could be customized)
-          //    OR just overwrite. Since API sort is Descending Date, first one is latest.
-          //    Actually, if ID is same, content is same.
-          // 2. Add to Map (Deduplicate by TITLE to hide versions/duplicates with different IDs)
-          //    We want the Latest timestamp for each unique Title.
-          final pageId = page['id'];
-          final lastEdited = DateTime.parse(page['last_edited_time']);
+          // Extract Title
+          String title = isDb ? "Untitled Database" : "Untitled Page";
+          try {
+             if (isDb) {
+                if (item['title'] != null && (item['title'] as List).isNotEmpty) {
+                   title = item['title'][0]['plain_text'];
+                }
+             } else {
+                final props = item['properties'];
+                for (var key in props.keys) {
+                  if (props[key]['type'] == 'title') {
+                    final titleList = props[key]['title'] as List;
+                    if (titleList.isNotEmpty) {
+                      title = titleList[0]['plain_text'];
+                    }
+                  }
+                }
+             }
+          } catch (e) {
+             // Fallback
+          }
+
+          final pageId = item['id'];
+          final lastEdited = DateTime.parse(item['last_edited_time']);
           
           if (!pagesMap.containsKey(title)) {
              pagesMap[title] = NotionPage(
               id: pageId,
               title: title,
               lastEdited: lastEdited,
-              url: page['url'],
+              url: item['url'] ?? "",
+              isDatabase: isDb,
             );
           } else {
-             // If we already have this title, check if this one is newer
              if (lastEdited.isAfter(pagesMap[title]!.lastEdited)) {
                 pagesMap[title] = NotionPage(
                   id: pageId,
                   title: title,
                   lastEdited: lastEdited,
-                  url: page['url'],
+                  url: item['url'] ?? "",
+                  isDatabase: isDb,
                 );
              }
           }
         }
         
-        // Sort final list by date descending (optional, but good for UI)
         final uniquePages = pagesMap.values.toList();
         uniquePages.sort((a, b) => b.lastEdited.compareTo(a.lastEdited));
         
@@ -197,36 +183,24 @@ class NativeNotionRepository implements NotionRepository {
   @override
   Future<Either<Failure, NotionSyncStats>> importPages(List<NotionPage> pages, String apiKey) async {
     try {
-      // 0. Update Known Roots (Persistence for UI Filtering)
       await _saveKnownRoots(pages);
 
-      // 1. Get Current DB State
       final existingSegments = await _db.getAllSegments();
       final notionSegments = existingSegments.where((s) => s.type == SegmentType.notion).toList();
       final existingMap = {for (var s in notionSegments) s.id: s};
 
-      // 2. Identify Deletions
+      // Deletion check
       final inputIds = pages.map((p) => p.id).toSet();
-      // Only delete if we are confidently syncing a scope? 
-      // Current design: Input `pages` IS the sync scope (from checkboxes).
-      // So anything in DB that is NOT in `pages` should be removed, IF we assume the user unchecked it.
-      // But `pages` from `searchPages` includes ALL available pages (checked and unchecked) usually?
-      // WAIT. `syncSelectedPages` passes ONLY `selectedPages`.
-      // So if I have 10 synced pages, and I uncheck 1 and click Sync, `pages` has 9 items.
-      // So `toDelete` will find that 1 item and delete it. CORRECT.
-      
       final toDelete = notionSegments.where((s) => !inputIds.contains(s.id)).toList();
       int deletedCount = toDelete.length;
       for (var s in toDelete) {
         await _db.deleteSegment(s.id);
       }
 
-      // 3. Identify Additions & Updates (Recursive Expansion)
       final pagesToProcess = <NotionPage>[];
       int addedCount = 0;
       int updatedCount = 0;
       
-      // Helper to classify and add
       void classifyAndAdd(NotionPage p) {
          if (!existingMap.containsKey(p.id)) {
             pagesToProcess.add(p);
@@ -237,13 +211,58 @@ class NativeNotionRepository implements NotionRepository {
          }
       }
 
-      // ... (Child DB Helper remains same, define it here or reuse) ...
-      // Copying helper from previous version for context validity
+      String getPropTitle(Map<String, dynamic> props) {
+         try {
+            for (var key in props.keys) {
+               if (props[key]['type'] == 'title') {
+                  final titleList = props[key]['title'] as List;
+                  if (titleList.isNotEmpty) {
+                     if (titleList[0]['plain_text'] != null) {
+                        return titleList[0]['plain_text'];
+                     }
+                     if (titleList[0]['text'] != null && titleList[0]['text']['content'] != null) {
+                        return titleList[0]['text']['content'];
+                     }
+                  }
+               }
+            }
+         } catch (_) {}
+         return "Untitled Row";
+      }
+
+      Future<List<NotionPage>> fetchDatabaseRows(String dbId) async {
+          try {
+             final dbUrl = Uri.parse('https://api.notion.com/v1/databases/$dbId/query');
+             final dbRes = await _client.post(dbUrl, headers: {
+                 'Authorization': 'Bearer $apiKey',
+                 'Notion-Version': '2022-06-28',
+                 'Content-Type': 'application/json',
+             });
+             if (dbRes.statusCode == 200) {
+                final dbData = jsonDecode(dbRes.body);
+                final rows = (dbData['results'] as List).map((json) {
+                   final props = json['properties'];
+                   final title = getPropTitle(props);
+                   return NotionPage(
+                     id: json['id'],
+                     title: title,
+                     url: json['url'] ?? "",
+                     lastEdited: DateTime.parse(json['last_edited_time']),
+                     isDatabase: false,
+                   );
+                }).toList();
+                return rows;
+             }
+             return [];
+          } catch (e) { return []; }
+       }
+
        Future<List<NotionPage>> fetchChildDatabaseRows(String pageId) async {
           try {
             final url = Uri.parse('https://api.notion.com/v1/blocks/$pageId/children');
             final response = await _client.get(url, headers: {
-               'Authorization': 'Bearer $apiKey', 'Notion-Version': '2022-06-28',
+               'Authorization': 'Bearer $apiKey',
+               'Notion-Version': '2022-06-28',
             });
             if (response.statusCode != 200) return [];
             final data = jsonDecode(response.body);
@@ -253,30 +272,8 @@ class NativeNotionRepository implements NotionRepository {
             for (var block in results) {
                if (block['type'] == 'child_database') {
                   final dbId = block['id'];
-                  final dbUrl = Uri.parse('https://api.notion.com/v1/databases/$dbId/query');
-                  final dbRes = await _client.post(dbUrl, headers: {
-                      'Authorization': 'Bearer $apiKey', 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json',
-                  });
-                  if (dbRes.statusCode == 200) {
-                     final dbData = jsonDecode(dbRes.body);
-                     final rows = (dbData['results'] as List).map((json) {
-                        final props = json['properties'];
-                        String title = "Untitled Row";
-                        // ... Title extraction reuse ...
-                         if (props['Question'] != null && props['Question']['title'].isNotEmpty) {
-                            title = props['Question']['title'][0]['text']['content'];
-                         } else if (props['Name'] != null && props['Name']['title'].isNotEmpty) {
-                            title = props['Name']['title'][0]['text']['content'];
-                         } else if (props['title'] != null && props['title']['title'].isNotEmpty) {
-                            title = props['title']['title'][0]['text']['content'];
-                         }
-                        return NotionPage(
-                          id: json['id'], title: title, url: json['url'],
-                          lastEdited: DateTime.parse(json['last_edited_time']),
-                        );
-                     }).toList();
-                     childRows.addAll(rows);
-                  }
+                  final rows = await fetchDatabaseRows(dbId);
+                  childRows.addAll(rows);
                }
             }
             return childRows;
@@ -285,14 +282,17 @@ class NativeNotionRepository implements NotionRepository {
 
       // EXPANSION LOOP
       for (var page in pages) {
-        classifyAndAdd(page);
-
-        // Check children (expensive but needed for depth)
-        // Only check children if Parent is new or valid? 
-        // Actually, previous logic was: check children for all input pages.
-        final children = await fetchChildDatabaseRows(page.id);
-        for (var child in children) {
-            classifyAndAdd(child);
+        if (page.isDatabase) {
+           final rows = await fetchDatabaseRows(page.id);
+           for (var row in rows) {
+              classifyAndAdd(row);
+           }
+        } else {
+           classifyAndAdd(page);
+           final children = await fetchChildDatabaseRows(page.id);
+           for (var child in children) {
+               classifyAndAdd(child);
+           }
         }
       }
 
@@ -315,6 +315,7 @@ class NativeNotionRepository implements NotionRepository {
             sourceUrl: page.url,
             isSynced: true,
             isUser: false,
+            contextTopic: page.title,
           );
         } catch (e) { return null; }
       });
@@ -368,6 +369,28 @@ class NativeNotionRepository implements NotionRepository {
         final data = jsonDecode(response.body);
         final props = data['properties'] as Map<String, dynamic>;
         final buffer = StringBuffer();
+
+        // Detect Convo Starter (column checkbox/select/status)
+        bool isConvoStarter = false;
+        for (var k in props.keys) {
+           final cleanKey = k.toLowerCase().replaceAll(' ', '').replaceAll('_', '').replaceAll('-', '');
+           if (cleanKey == 'convostarter') {
+              final prop = props[k];
+              final type = prop['type'];
+              if (type == 'checkbox') {
+                 isConvoStarter = prop['checkbox'] == true;
+              } else if (type == 'select') {
+                 final name = prop['select']?['name']?.toLowerCase();
+                 isConvoStarter = name == 'yes' || name == 'true' || name == 'active';
+              } else if (type == 'status') {
+                 final name = prop['status']?['name']?.toLowerCase();
+                 isConvoStarter = name == 'yes' || name == 'true' || name == 'active';
+              }
+           }
+        }
+        if (isConvoStarter) {
+           buffer.writeln("Convo Starter: true");
+        }
         
         // Helper to extract plain text
         String extractText(Map<String, dynamic> prop) {
@@ -462,20 +485,119 @@ class NativeNotionRepository implements NotionRepository {
 
         for (var block in results) {
           final type = block['type'];
+          final hasChildren = block['has_children'] == true;
           if (block[type] != null && block[type]['rich_text'] != null) {
             final textList = block[type]['rich_text'] as List;
             if (textList.isNotEmpty) {
               final text = textList.map((t) => t['plain_text']).join();
               if (type == 'heading_1') buffer.writeln("\n# $text");
               else if (type == 'heading_2') buffer.writeln("\n## $text");
-              else if (type == 'bulleted_list_item') buffer.writeln("- $text");
-              else buffer.writeln(text);
+              else if (type == 'bulleted_list_item') {
+                 buffer.writeln("- $text");
+                 if (hasChildren) {
+                    final childText = await _fetchBlockChildrenText(block['id'], apiKey, depth: 1);
+                    buffer.write(childText);
+                 }
+              } else buffer.writeln(text);
             }
           }
         }
         return Right(buffer.toString());
       } else {
         return Left(ServerFailure("Content Fetch Failed: ${response.statusCode}"));
+      }
+    } catch (e) {
+      return Left(ServerFailure(e.toString()));
+    }
+  }
+
+  Future<String> _fetchBlockChildrenText(String blockId, String apiKey, {int depth = 1}) async {
+    try {
+      final url = Uri.parse('https://api.notion.com/v1/blocks/$blockId/children?page_size=100');
+      final response = await _client.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $apiKey',
+          'Notion-Version': '2022-06-28',
+        },
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final results = data['results'] as List;
+        final buffer = StringBuffer();
+        final indent = "  " * depth;
+
+        for (var block in results) {
+          final type = block['type'];
+          final hasChildren = block['has_children'] == true;
+          if (block[type] != null && block[type]['rich_text'] != null) {
+            final textList = block[type]['rich_text'] as List;
+            if (textList.isNotEmpty) {
+              final text = textList.map((t) => t['plain_text']).join();
+              if (type == 'bulleted_list_item') {
+                 buffer.writeln("$indent- $text");
+                 if (hasChildren) {
+                    final childText = await _fetchBlockChildrenText(block['id'], apiKey, depth: depth + 1);
+                    buffer.write(childText);
+                 }
+              } else {
+                 buffer.writeln("$indent$text");
+              }
+            }
+          }
+        }
+        return buffer.toString();
+      }
+      return "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  @override
+  Future<Either<Failure, String>> getLatestPageFromDatabase(String databaseId) async {
+    try {
+      final apiKeyResult = await _settingsRepository.getApiKey('notion');
+      String apiKey = "";
+      apiKeyResult.fold((f) => null, (key) => apiKey = key);
+      if (apiKey.isEmpty) return const Left(PermissionFailure("Notion API Key not found"));
+
+      final extractId = RegExp(r'[a-f0-9]{32}').firstMatch(databaseId)?.group(0) ?? databaseId;
+
+      final url = Uri.parse('https://api.notion.com/v1/databases/$extractId/query');
+      final response = await _client.post(
+        url,
+        headers: {
+          'Authorization': 'Bearer $apiKey',
+          'Notion-Version': '2022-06-28',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'sorts': [
+            {
+              'timestamp': 'created_time',
+              'direction': 'descending'
+            }
+          ],
+          'page_size': 1
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final results = data['results'] as List;
+        if (results.isEmpty) {
+           return const Left(ServerFailure("Database is empty or not found."));
+        }
+        
+        final latestPageId = results.first['id'];
+        
+        // Fetch content from the blocks endpoint
+        final contentResult = await _fetchPageContent(latestPageId, apiKey);
+        return contentResult;
+
+      } else {
+        return Left(ServerFailure("Query Failed: ${response.statusCode}"));
       }
     } catch (e) {
       return Left(ServerFailure(e.toString()));

@@ -22,7 +22,7 @@ class LocalDatabase {
 
     return await openDatabase(
       path,
-      version: 6,
+      version: 8,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -66,6 +66,14 @@ class LocalDatabase {
        // Add confidence score (v6) - Default to 1.0 (High confidence for legacy)
        await db.execute("ALTER TABLE segments ADD COLUMN confidence REAL DEFAULT 1.0");
     }
+    if (oldVersion < 7) {
+       // Add location name awareness (v7)
+       await db.execute("ALTER TABLE segments ADD COLUMN location_name TEXT");
+    }
+    if (oldVersion < 8) {
+       // Add context history tracking for dynamic repeating topics (v8)
+       await db.execute("ALTER TABLE segments ADD COLUMN context_topic TEXT");
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -81,7 +89,9 @@ class LocalDatabase {
         bubble_name TEXT,
         bubble_icon TEXT,
         included_segment_ids TEXT,
-        confidence REAL DEFAULT 1.0
+        confidence REAL DEFAULT 1.0,
+        location_name TEXT,
+        context_topic TEXT
       )
     ''');
 
@@ -140,6 +150,21 @@ class LocalDatabase {
       where: 'text LIKE ?',
       whereArgs: ['%$query%'],
       orderBy: 'timestamp DESC',
+    );
+    return result.map((json) => TranscriptionSegment.fromMap(json)).toList();
+  }
+
+  Future<List<TranscriptionSegment>> getHistoryForContext(String topic, {int limit = 50}) async {
+    final db = await database;
+    // We only want historical items that actually belong to the context, 
+    // potentially excluding the *current* session's items if we only want history, 
+    // but typically we'll filter recent ones in memory or just fetch all context items.
+    final result = await db.query(
+      'segments',
+      where: 'context_topic = ?',
+      whereArgs: [topic],
+      orderBy: 'timestamp DESC',
+      limit: limit,
     );
     return result.map((json) => TranscriptionSegment.fromMap(json)).toList();
   }
