@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Recall.Me Bubble UI Mockup Explorer</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    .stacked-card-1 {
+      transform: translateY(4px) scale(0.98);
+      opacity: 0.6;
+    }
+    .stacked-card-2 {
+      transform: translateY(8px) scale(0.96);
+      opacity: 0.35;
+    }
+    .fade-in {
+      animation: fadeIn 0.25s ease-out forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="bg-[var(--background)] text-[var(--foreground)] antialiased p-6">
+  <div class="max-w-5xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">Interactive Prototype</span>
+          <h1 class="text-xl font-bold text-[var(--foreground)]">Recall.Me Bubble UX Concepts</h1>
+        </div>
+        <p class="text-sm text-[var(--muted-foreground)] mt-1">
+          Interact with the phone simulators below: expand grouped summaries, select buried speech bubbles, swipe multi-answers, and click AI drill-down buttons.
+        </p>
+      </div>
+      <!-- Section Switcher -->
+      <div class="flex bg-[var(--background)] p-1 rounded-xl border border-[var(--border)] self-start">
+        <button id="tab-live" onclick="switchMainSection('live')" class="px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition">
+          1. Live Bubble Grouping
+        </button>
+        <button id="tab-answer" onclick="switchMainSection('answer')" class="px-4 py-2 rounded-lg text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition">
+          2. Answer Drill-Downs
+        </button>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         SECTION 1: LIVE CONVERSATION BUBBLE GROUPING
+         ========================================== -->
+    <div id="section-live" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Left Column: Option Selector & Notes -->
+      <div class="lg:col-span-5 space-y-4">
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
+          <h2 class="text-base font-bold text-[var(--foreground)]">Live Speech Grouping Options</h2>
+          <p class="text-xs text-[var(--muted-foreground)] leading-relaxed">
+            When continuous speech generates dozens of bubbles without tapping, older bubbles auto-group so the live stream stays clean and navigable.
+          </p>
+
+          <div class="space-y-2.5">
+            <button onclick="setLiveMode('1A')" id="btn-live-1A" class="w-full text-left p-3.5 rounded-xl border-2 border-indigo-500 bg-indigo-500/10 transition">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-bold text-[var(--foreground)]">Option 1A: Topic Accordion Stack</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-indigo-600 text-white font-medium">Recommended</span>
+              </div>
+              <p class="text-xs text-[var(--muted-foreground)] mt-1">
+                Older bubbles fold into a stacked "Summary Card" with an AI title &amp; count badge. Tap to unfold and pick any individual bubble to process.
+              </p>
+            </button>
+
+            <button onclick="setLiveMode('1B')" id="btn-live-1B" class="w-full text-left p-3.5 rounded-xl border border-[var(--border)] bg-[var(--background)] hover:border-indigo-500/50 transition">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-bold text-[var(--foreground)]">Option 1B: Auto-Keep Questions + Rollup</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">Smart Filter</span>
+              </div>
+              <p class="text-xs text-[var(--muted-foreground)] mt-1">
+                Collapses routine chatter into compact bars, but automatically keeps detected <strong>Questions (?)</strong> visible on the surface so you never have to dig for them.
+              </p>
+            </button>
+
+            <button onclick="setLiveMode('1C')" id="btn-live-1C" class="w-full text-left p-3.5 rounded-xl border border-[var(--border)] bg-[var(--background)] hover:border-indigo-500/50 transition">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-bold text-[var(--foreground)]">Option 1C: Quick-Chip Summary Drawer</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium">Fastest Tap</span>
+              </div>
+              <p class="text-xs text-[var(--muted-foreground)] mt-1">
+                Summary bubble shows clickable mini-chips for each underlying bubble. Tap a chip directly to process that bubble without even unfolding the group.
+              </p>
+            </button>
+          </div>
+
+          <div class="pt-2 border-t border-[var(--border)] flex items-center justify-between">
+            <span class="text-xs text-[var(--muted-foreground)]">Simulate new live speech bubble:</span>
+            <button onclick="simulateIncomingSpeech()" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition">
+              + Add Live Speech Bubble
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Interactive Phone Frame -->
+      <div class="lg:col-span-7 flex justify-center">
+        <div class="w-full max-w-md bg-[#0D0E14] text-white border-2 border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+          <!-- Mock App Top Bar -->
+          <div class="px-4 py-3 bg-[#141622] border-b border-white/10 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+              <span class="text-xs font-bold tracking-wider text-slate-200">RECALL.ME LIVE</span>
+            </div>
+            <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 text-xs font-semibold">
+              <span>☁️ Gemini 3.5</span>
+            </div>
+          </div>
+
+          <!-- Stream Area -->
+          <div id="live-stream-container" class="p-4 space-y-4 overflow-y-auto max-h-[520px] min-h-[440px]">
+            <!-- Populated by JS -->
+          </div>
+
+          <!-- Bottom Action Shelf (shows when a bubble is selected) -->
+          <div id="live-selection-bar" class="px-4 py-3 bg-[#181B2C] border-t border-white/10 flex items-center justify-between">
+            <span id="selected-bubble-status" class="text-xs text-slate-400">Tap any bubble (or expand a summary) to process</span>
+            <button onclick="switchMainSection('answer')" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition">
+              Ask Notion →
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         SECTION 2: ANSWER BUBBLE DRILL-DOWNS
+         ========================================== -->
+    <div id="section-answer" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Left Column: Option Selector & Explanation -->
+      <div class="lg:col-span-5 space-y-4">
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
+          <h2 class="text-base font-bold text-[var(--foreground)]">Answer Bubble &amp; AI Drill-Down Options</h2>
+          <p class="text-xs text-[var(--muted-foreground)] leading-relaxed">
+            When you tap an answer type, it creates a swipeable multi-answer bubble with navigation dots and AI-generated secondary drill-down buttons.
+          </p>
+
+          <div class="space-y-2.5">
+            <button onclick="setAnswerMode('2A')" id="btn-ans-2A" class="w-full text-left p-3.5 rounded-xl border-2 border-indigo-500 bg-indigo-500/10 transition">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-bold text-[var(--foreground)]">Option 2A: Chained Child Answer Bubbles</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-indigo-600 text-white font-medium">Your Core Idea</span>
+              </div>
+              <p class="text-xs text-[var(--muted-foreground)] mt-1">
+                Tapping an AI-generated secondary button spawns a <strong>new connected Answer Bubble</strong> below it with its own swipeable answers, nav dots, and deeper AI follow-ups.
+              </p>
+            </button>
+
+            <button onclick="setAnswerMode('2B')" id="btn-ans-2B" class="w-full text-left p-3.5 rounded-xl border border-[var(--border)] bg-[var(--background)] hover:border-indigo-500/50 transition">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-bold text-[var(--foreground)]">Option 2B: In-Place Breadcrumb Morph</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 font-medium">Zero Clutter</span>
+              </div>
+              <p class="text-xs text-[var(--muted-foreground)] mt-1">
+                Instead of adding more bubbles vertically, secondary drill-down buttons morph the <strong>same bubble</strong> and add a clickable breadcrumb trail (`Bull Case > Margins > Q4`) at the top.
+              </p>
+            </button>
+
+            <button onclick="setAnswerMode('2C')" id="btn-ans-2C" class="w-full text-left p-3.5 rounded-xl border border-[var(--border)] bg-[var(--background)] hover:border-indigo-500/50 transition">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-bold text-[var(--foreground)]">Option 2C: Instant Facet Matrix + Custom Chip</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium">Hybrid Speed</span>
+              </div>
+              <p class="text-xs text-[var(--muted-foreground)] mt-1">
+                Combines top facet pills (`Direct` | `Metrics` | `Counter-Point`) with bottom AI drill-down buttons and a 1-tap voice/text micro-refiner.
+              </p>
+            </button>
+          </div>
+
+          <div class="pt-2 border-t border-[var(--border)] flex items-center justify-between">
+            <span class="text-xs text-[var(--muted-foreground)]">Reset drill-down tree:</span>
+            <button onclick="resetAnswerDemo()" class="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold transition">
+              ↺ Reset Demo
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Interactive Phone Frame for Answers -->
+      <div class="lg:col-span-7 flex justify-center">
+        <div class="w-full max-w-md bg-[#0D0E14] text-white border-2 border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+          <!-- Header -->
+          <div class="px-4 py-3 bg-[#141622] border-b border-white/10 flex items-center justify-between">
+            <span class="text-xs font-bold tracking-wider text-indigo-300">✨ AI ANSWER EXPLORER</span>
+            <span id="answer-mode-badge" class="text-xs px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300">Mode 2A: Chained Bubbles</span>
+          </div>
+
+          <!-- Selected User Question Bubble -->
+          <div class="px-4 pt-3">
+            <div class="ml-12 p-3 rounded-2xl bg-[#131D2E] border border-blue-500/60 text-xs text-slate-100 flex items-center gap-2">
+              <span class="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs">✓</span>
+              <span>"What is the Bull Case Analysis for our Q3 product expansion?"</span>
+            </div>
+          </div>
+
+          <!-- Dynamic Answer Area -->
+          <div id="answer-stream-container" class="p-4 space-y-4 overflow-y-auto max-h-[480px] min-h-[410px]">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // STATE & DATA FOR LIVE GROUPING (SECTION 1)
+    // ==========================================
+    let currentLiveMode = '1A';
+    let expandedGroups = { 'grp-1': false, 'grp-2': false };
+    let selectedSpeechId = 'live-2';
+
+    const speechGroups = [
+      {
+        id: 'grp-1',
+        title: 'Market & Competitor Landscape',
+        timeRange: '10:02 – 10:08 AM',
+        tags: ['#Competitors', '#Pricing'],
+        summary: 'Reviewed competitor tier pricing and enterprise seat adoption rates.',
+        bubbles: [
+          { id: 'b-101', time: '10:02 AM', text: 'Let us look at how competitors are pricing their enterprise seats.', isQuestion: false },
+          { id: 'b-102', time: '10:04 AM', text: 'They raised the pro tier from $29 to $39 last quarter.', isQuestion: false },
+          { id: 'b-103', time: '10:06 AM', text: 'How does our churn compare in the mid-market segment?', isQuestion: true },
+          { id: 'b-104', time: '10:08 AM', text: 'Our mid-market retention stayed above 94% through Q2.', isQuestion: false }
+        ]
+      },
+      {
+        id: 'grp-2',
+        title: 'Bull Case & Margin Assumptions',
+        timeRange: '10:09 – 10:14 AM',
+        tags: ['#BullCase', '#Margins'],
+        summary: 'Discussed gross margin expansion and AI automation cost savings.',
+        bubbles: [
+          { id: 'b-201', time: '10:09 AM', text: 'Moving to the Bull Case Analysis for the board deck.', isQuestion: false },
+          { id: 'b-202', time: '10:11 AM', text: 'What is the Bull Case Analysis for our Q3 product expansion?', isQuestion: true },
+          { id: 'b-203', time: '10:13 AM', text: 'If self-serve onboarding hits 40%, gross margins expand by 600 bps.', isQuestion: false }
+        ]
+      }
+    ];
+
+    const liveBubbles = [
+      { id: 'live-1', time: '10:15 AM', text: 'Let us verify the exact numbers from our Notion strategy doc.' },
+      { id: 'live-2', time: '10:16 AM (Live)', text: 'Can we pull up the upside revenue targets and key risks?' }
+    ];
+
+    function switchMainSection(sec) {
+      const liveSec = document.getElementById('section-live');
+      const ansSec = document.getElementById('section-answer');
+      const tabLive = document.getElementById('tab-live');
+      const tabAns = document.getElementById('tab-answer');
+
+      if (sec === 'live') {
+        liveSec.classList.remove('hidden');
+        ansSec.classList.add('hidden');
+        tabLive.className = 'px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition';
+        tabAns.className = 'px-4 py-2 rounded-lg text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition';
+        renderLiveStream();
+      } else {
+        liveSec.classList.add('hidden');
+        ansSec.classList.remove('hidden');
+        tabAns.className = 'px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition';
+        tabLive.className = 'px-4 py-2 rounded-lg text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition';
+        renderAnswerStream();
+      }
+    }
+
+    function setLiveMode(mode) {
+      currentLiveMode = mode;
+      ['1A', '1B', '1C'].forEach(m => {
+        const btn = document.getElementById('btn-live-' + m);
+        if (m === mode) {
+          btn.className = 'w-full text-left p-3.5 rounded-xl border-2 border-indigo-500 bg-indigo-500/10 transition';
+        } else {
+          btn.className = 'w-full text-left p-3.5 rounded-xl border border-[var(--border)] bg-[var(--background)] hover:border-indigo-500/50 transition';
+        }
+      });
+      renderLiveStream();
+    }
+
+    function toggleGroup(grpId) {
+      expandedGroups[grpId] = !expandedGroups[grpId];
+      renderLiveStream();
+    }
+
+    function selectBubble(id, text) {
+      selectedSpeechId = id;
+      document.getElementById('selected-bubble-status').textContent = 'Selected: "' + text.substring(0, 38) + '..."';
+      renderLiveStream();
+    }
+
+    function simulateIncomingSpeech() {
+      const id = 'live-' + (liveBubbles.length + 1);
+      liveBubbles.push({
+        id,
+        time: 'Just now (Live)',
+        text: 'What are the secondary bear case risks we should prepare for?'
+      });
+      if (liveBubbles.length > 3) {
+        const moved = liveBubbles.shift();
+        speechGroups[speechGroups.length - 1].bubbles.push({
+          id: moved.id,
+          time: moved.time,
+          text: moved.text,
+          isQuestion: moved.text.includes('?')
+        });
+      }
+      selectedSpeechId = id;
+      renderLiveStream();
+    }
+
+    function renderLiveStream() {
+      const container = document.getElementById('live-stream-container');
+      let html = '';
+
+      speechGroups.forEach(grp => {
+        const isExp = expandedGroups[grp.id];
+
+        if (currentLiveMode === '1A') {
+          // OPTION 1A: Stacked Accordion Summary Card
+          html += `
+            <div class="relative">
+              ${!isExp ? `
+                <div class="absolute inset-0 bg-[#1A1D2D] border border-white/10 rounded-2xl stacked-card-2 pointer-events-none"></div>
+                <div class="absolute inset-0 bg-[#1A1D2D] border border-white/10 rounded-2xl stacked-card-1 pointer-events-none"></div>
+              ` : ''}
+              <div class="relative bg-[#181B2A] border ${isExp ? 'border-indigo-500/60' : 'border-white/15'} rounded-2xl p-3.5 transition">
+                <div onclick="toggleGroup('${grp.id}')" class="cursor-pointer flex items-start justify-between gap-2">
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <span class="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-bold">
+                        ${grp.bubbles.length} Bubbles Grouped
+                      </span>
+                      <span class="text-xs text-slate-400">${grp.timeRange}</span>
+                    </div>
+                    <h3 class="text-sm font-bold text-white mt-1.5">📑 ${grp.title}</h3>
+                    <p class="text-xs text-slate-300 mt-0.5">${grp.summary}</p>
+                  </div>
+                  <button class="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-indigo-300 font-semibold shrink-0">
+                    ${isExp ? '▲ Collapse' : '▼ Expand'}
+                  </button>
+                </div>
+
+                ${isExp ? `
+                  <div class="mt-3 pt-3 border-t border-white/10 space-y-2 pl-2 border-l-2 border-indigo-500/40 fade-in">
+                    ${grp.bubbles.map(b => `
+                      <div onclick="selectBubble('${b.id}', '${b.text.replace(/'/g, "\\'")}')"
+                           class="p-2.5 rounded-xl cursor-pointer transition ${selectedSpeechId === b.id ? 'bg-indigo-600/30 border border-indigo-400' : 'bg-[#131D2E] border border-blue-500/30 hover:border-blue-400'}">
+                        <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                          <span>Speech Bubble</span>
+                          <span>${b.time}</span>
+                        </div>
+                        <p class="text-xs text-white">${b.text}</p>
+                      </div>
+                    `).join('')}
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        } else if (currentLiveMode === '1B') {
+          // OPTION 1B: Pin Questions to Surface + Collapse Chatter
+          const questions = grp.bubbles.filter(b => b.isQuestion);
+          const chatterCount = grp.bubbles.length - questions.length;
+          html += `
+            <div class="space-y-2">
+              <div onclick="toggleGroup('${grp.id}')" class="cursor-pointer px-3 py-2 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between text-xs text-slate-300 hover:bg-white/10">
+                <span>📁 <strong>${grp.title}</strong> • ${chatterCount} routine bubbles folded</span>
+                <span class="text-indigo-400 font-semibold">${isExp ? 'Hide all' : 'Show all'}</span>
+              </div>
+              ${questions.map(q => `
+                <div onclick="selectBubble('${q.id}', '${q.text.replace(/'/g, "\\'")}')"
+                     class="ml-4 p-3 rounded-2xl cursor-pointer transition ${selectedSpeechId === q.id ? 'bg-amber-500/20 border-2 border-amber-400' : 'bg-[#1F1A24] border border-amber-500/50'}">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-bold text-amber-300">❓ Auto-Surfaced Question</span>
+                    <span class="text-xs text-slate-400">${q.time}</span>
+                  </div>
+                  <p class="text-xs text-white font-medium">${q.text}</p>
+                </div>
+              `).join('')}
+              ${isExp ? `
+                <div class="pl-4 space-y-2 fade-in">
+                  ${grp.bubbles.filter(b => !b.isQuestion).map(b => `
+                    <div onclick="selectBubble('${b.id}', '${b.text.replace(/'/g, "\\'")}')"
+                         class="p-2.5 rounded-xl cursor-pointer bg-[#131D2E] border ${selectedSpeechId === b.id ? 'border-indigo-400' : 'border-white/10'} text-xs text-slate-200">
+                      ${b.text}
+                    </div>
+                  `).join('')}
+                </div>
+              ` : ''}
+            </div>
+          `;
+        } else {
+          // OPTION 1C: Quick-Chip Summary Drawer
+          html += `
+            <div class="bg-[#181B2A] border border-white/15 rounded-2xl p-3.5 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-emerald-400">⚡ ${grp.title}</span>
+                <span class="text-xs text-slate-400">${grp.timeRange}</span>
+              </div>
+              <p class="text-xs text-slate-300">${grp.summary}</p>
+              <div class="flex flex-wrap gap-1.5 pt-1">
+                ${grp.bubbles.map((b, idx) => `
+                  <button onclick="selectBubble('${b.id}', '${b.text.replace(/'/g, "\\'")}')"
+                          class="px-2.5 py-1 rounded-lg text-xs transition ${selectedSpeechId === b.id ? 'bg-indigo-600 text-white font-semibold border border-indigo-300' : 'bg-white/5 hover:bg-white/15 text-slate-200 border border-white/10'}">
+                    #${idx + 1}: "${b.text.substring(0, 22)}..."
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }
+      });
+
+      // Divider for Live Stream
+      html += `
+        <div class="flex items-center gap-2 pt-2">
+          <div class="h-px bg-blue-500/30 flex-1"></div>
+          <span class="text-xs font-bold text-blue-400 tracking-wider">LIVE STREAM (UNFOLDED)</span>
+          <div class="h-px bg-blue-500/30 flex-1"></div>
+        </div>
+      `;
+
+      // Active Live Bubbles
+      liveBubbles.forEach(lb => {
+        const isSel = selectedSpeechId === lb.id;
+        html += `
+          <div onclick="selectBubble('${lb.id}', '${lb.text.replace(/'/g, "\\'")}')"
+               class="ml-8 p-3.5 rounded-2xl cursor-pointer transition fade-in ${isSel ? 'bg-indigo-600/30 border-2 border-indigo-400 shadow-lg' : 'bg-[#131D2E] border border-blue-500/70 hover:border-blue-400'}">
+            <div class="flex items-center justify-between mb-1">
+              <div class="flex items-center gap-1.5">
+                <span class="w-4 h-4 rounded-full ${isSel ? 'bg-indigo-500' : 'bg-blue-500'} flex items-center justify-center text-xs text-white">✓</span>
+                <span class="text-xs font-semibold text-blue-300">Live Speech</span>
+              </div>
+              <span class="text-xs text-slate-400">${lb.time}</span>
+            </div>
+            <p class="text-sm text-white font-medium">${lb.text}</p>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // ==========================================
+    // STATE & DATA FOR ANSWER DRILL-DOWN (SECTION 2)
+    // ==========================================
+    let currentAnswerMode = '2A';
+
+    const answerNodes = {
+      root: {
+        id: 'root',
+        title: 'ASK NOTION • PRIMARY MATCH',
+        confidence: '0.96',
+        notionTitle: 'Q3 Bull Case Strategy',
+        answers: [
+          '<strong>Bull Case Core Thesis:</strong> Q3 expansion targets 38% YoY ARR growth driven by enterprise self-serve adoption and 600 bps gross margin lift.',
+          '<strong>Alternative Angle (Upside Scenario):</strong> International APAC rollout could add $4.2M incremental pipeline ahead of Q4 schedule.',
+          '<strong>Executive Summary Note:</strong> Net dollar retention is projected to reach 118% if AI add-on attach rate crosses 25%.'
+        ],
+        drillButtons: [
+          { label: '📈 Financial Metrics', targetId: 'metrics' },
+          { label: '⚠️ Bear Counter-Risks', targetId: 'risks' },
+          { label: '🏢 Customer Proof Points', targetId: 'proof' }
+        ]
+      },
+      metrics: {
+        id: 'metrics',
+        title: 'DRILL-DOWN • FINANCIAL METRICS',
+        confidence: '0.94',
+        notionTitle: 'Q3 Financial Model',
+        answers: [
+          '<strong>Unit Economics:</strong> Gross Margin improves from 72% to 78%. CAC payback drops from 14 months to 9.5 months.',
+          '<strong>ARR Breakdown:</strong> $18.5M base target vs. $22.1M Bull Case stretch goal with 82% software gross margin.'
+        ],
+        drillButtons: [
+          { label: '🧮 CAC Payback Math', targetId: 'cac' },
+          { label: '⚠️ Bear Counter-Risks', targetId: 'risks' }
+        ]
+      },
+      risks: {
+        id: 'risks',
+        title: 'DRILL-DOWN • BEAR COUNTER-RISKS',
+        confidence: '0.91',
+        notionTitle: 'Risk Register & Mitigations',
+        answers: [
+          '<strong>Primary Risk:</strong> Enterprise procurement cycles lengthening by 3+ weeks could push $1.8M of Q3 bookings into Q4.',
+          '<strong>Mitigation Plan:</strong> Offering quarterly ramp billing and pre-approved security packages for Fortune 500 prospects.'
+        ],
+        drillButtons: [
+          { label: '🛡️ Security Package Details', targetId: 'cac' },
+          { label: '📈 Financial Metrics', targetId: 'metrics' }
+        ]
+      },
+      proof: {
+        id: 'proof',
+        title: 'DRILL-DOWN • CUSTOMER PROOF',
+        confidence: '0.93',
+        notionTitle: 'Q2 Pilot Case Studies',
+        answers: [
+          '<strong>Pilot Results:</strong> 14 enterprise design partners completed onboarding in 6 days (down from 21 days) with 92% weekly active usage.',
+          '<strong>Quote from VP Eng (FinCorp):</strong> "Automated semantic recall cut our meeting prep time by 65% in the first month."'
+        ],
+        drillButtons: [
+          { label: '📈 Financial Metrics', targetId: 'metrics' }
+        ]
+      },
+      cac: {
+        id: 'cac',
+        title: 'DEEP DRILL • UNIT ECONOMICS & SECURITY',
+        confidence: '0.95',
+        notionTitle: 'CFO Appendix B',
+        answers: [
+          '<strong>Deep Dive Detail:</strong> Self-serve PLG funnel converts at 6.4% with zero AE touch required for deals under $15k ARR.',
+          '<strong>SOC2 Type II & HIPAA:</strong> Pre-certified compliance bundle reduces legal review time by 18 business days.'
+        ],
+        drillButtons: []
+      }
+    };
+
+    let activeChain = [{ nodeId: 'root', slideIndex: 0 }];
+    let breadcrumbPath = ['root'];
+    let currentFacetIndex = 0;
+
+    function setAnswerMode(mode) {
+      currentAnswerMode = mode;
+      ['2A', '2B', '2C'].forEach(m => {
+        const btn = document.getElementById('btn-ans-' + m);
+        if (m === mode) {
+          btn.className = 'w-full text-left p-3.5 rounded-xl border-2 border-indigo-500 bg-indigo-500/10 transition';
+        } else {
+          btn.className = 'w-full text-left p-3.5 rounded-xl border border-[var(--border)] bg-[var(--background)] hover:border-indigo-500/50 transition';
+        }
+      });
+
+      const badge = document.getElementById('answer-mode-badge');
+      if (mode === '2A') badge.textContent = 'Mode 2A: Chained Bubbles';
+      if (mode === '2B') badge.textContent = 'Mode 2B: In-Place Breadcrumb';
+      if (mode === '2C') badge.textContent = 'Mode 2C: Facet Matrix';
+
+      resetAnswerDemo();
+    }
+
+    function resetAnswerDemo() {
+      activeChain = [{ nodeId: 'root', slideIndex: 0 }];
+      breadcrumbPath = ['root'];
+      currentFacetIndex = 0;
+      renderAnswerStream();
+    }
+
+    function changeSlide(chainIdx, delta) {
+      const item = activeChain[chainIdx];
+      const node = answerNodes[item.nodeId];
+      const next = item.slideIndex + delta;
+      if (next >= 0 && next < node.answers.length) {
+        item.slideIndex = next;
+        renderAnswerStream();
+      }
+    }
+
+    function setSlide(chainIdx, idx) {
+      activeChain[chainIdx].slideIndex = idx;
+      renderAnswerStream();
+    }
+
+    function triggerDrillDown(targetId) {
+      if (currentAnswerMode === '2A') {
+        // Spawn a new child bubble in the chain if not already at end
+        const existsIdx = activeChain.findIndex(c => c.nodeId === targetId);
+        if (existsIdx !== -1) {
+          activeChain = activeChain.slice(0, existsIdx + 1);
+        } else {
+          activeChain.push({ nodeId: targetId, slideIndex: 0 });
+        }
+      } else if (currentAnswerMode === '2B') {
+        // Morph in place with breadcrumb
+        breadcrumbPath.push(targetId);
+        activeChain = [{ nodeId: targetId, slideIndex: 0 }];
+      } else {
+        activeChain = [{ nodeId: targetId, slideIndex: 0 }];
+      }
+      renderAnswerStream();
+      const container = document.getElementById('answer-stream-container');
+      setTimeout(() => { container.scrollTop = container.scrollHeight; }, 50);
+    }
+
+    function jumpBreadcrumb(idx) {
+      const targetId = breadcrumbPath[idx];
+      breadcrumbPath = breadcrumbPath.slice(0, idx + 1);
+      activeChain = [{ nodeId: targetId, slideIndex: 0 }];
+      renderAnswerStream();
+    }
+
+    function renderAnswerStream() {
+      const container = document.getElementById('answer-stream-container');
+      let html = '';
+
+      if (currentAnswerMode === '2A') {
+        // OPTION 2A: Chained Child Answer Bubbles
+        activeChain.forEach((item, chainIdx) => {
+          const node = answerNodes[item.nodeId];
+          const totalSlides = node.answers.length;
+          const currSlide = item.slideIndex;
+
+          if (chainIdx > 0) {
+            html += `
+              <div class="flex items-center gap-2 pl-6 -my-2">
+                <div class="w-0.5 h-5 bg-indigo-500/60"></div>
+                <span class="text-xs text-indigo-400 font-semibold">↳ AI Secondary Drill-Down</span>
+              </div>
+            `;
+          }
+
+          html += buildBubbleCardHtml(node, chainIdx, currSlide, totalSlides, '');
+        });
+      } else if (currentAnswerMode === '2B') {
+        // OPTION 2B: In-Place Morphing with Breadcrumb Trail
+        const item = activeChain[0];
+        const node = answerNodes[item.nodeId];
+        const totalSlides = node.answers.length;
+        const currSlide = item.slideIndex;
+
+        const breadcrumbHtml = `
+          <div class="flex items-center flex-wrap gap-1 mb-2.5 pb-2 border-b border-white/10 text-xs">
+            ${breadcrumbPath.map((bId, idx) => `
+              <button onclick="jumpBreadcrumb(${idx})" class="px-2 py-0.5 rounded ${idx === breadcrumbPath.length - 1 ? 'bg-indigo-600 text-white font-bold' : 'bg-white/5 text-indigo-300 hover:bg-white/10'}">
+                ${bId.toUpperCase()}
+              </button>
+              ${idx < breadcrumbPath.length - 1 ? '<span class="text-slate-500">›</span>' : ''}
+            `).join('')}
+          </div>
+        `;
+
+        html += buildBubbleCardHtml(node, 0, currSlide, totalSlides, breadcrumbHtml);
+      } else {
+        // OPTION 2C: Instant Facet Matrix
+        const facetIds = ['root', 'metrics', 'risks', 'proof'];
+        const facetLabels = ['🎯 Overview', '📈 Metrics', '⚠️ Risks', '🏢 Proof'];
+        const item = activeChain[0];
+        const node = answerNodes[item.nodeId];
+        const totalSlides = node.answers.length;
+        const currSlide = item.slideIndex;
+
+        const matrixTabsHtml = `
+          <div class="grid grid-cols-4 gap-1 p-1 bg-black/40 rounded-xl mb-3 border border-white/10">
+            ${facetIds.map((fId, i) => `
+              <button onclick="triggerDrillDown('${fId}')" class="py-1.5 rounded-lg text-xs font-semibold transition ${item.nodeId === fId ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}">
+                ${facetLabels[i]}
+              </button>
+            `).join('')}
+          </div>
+        `;
+
+        html += buildBubbleCardHtml(node, 0, currSlide, totalSlides, matrixTabsHtml);
+      }
+
+      container.innerHTML = html;
+    }
+
+    function buildBubbleCardHtml(node, chainIdx, currSlide, totalSlides, topExtraHtml) {
+      return `
+        <div class="mr-6 p-4 rounded-2xl bg-[#140F26] border-2 border-indigo-500/80 shadow-xl fade-in space-y-3">
+          ${topExtraHtml}
+
+          <!-- Bubble Header -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-xs text-indigo-400">✨</span>
+              <span class="text-xs font-bold tracking-wider text-indigo-300">${node.title}</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="px-2 py-0.5 rounded-full bg-indigo-500/30 text-xs font-bold text-white">★ ${node.confidence}</span>
+            </div>
+          </div>
+
+          <!-- Answer Counter & Left/Right Controls -->
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded-md bg-indigo-500/25 text-indigo-300 text-xs font-semibold">
+              Answer ${currSlide + 1} of ${totalSlides} (Swipe ⇄)
+            </span>
+            <div class="flex items-center gap-1">
+              <button onclick="changeSlide(${chainIdx}, -1)" ${currSlide === 0 ? 'disabled' : ''}
+                      class="px-2 py-0.5 rounded bg-white/5 hover:bg-white/15 disabled:opacity-25 text-xs">◀</button>
+              <button onclick="changeSlide(${chainIdx}, 1)" ${currSlide === totalSlides - 1 ? 'disabled' : ''}
+                      class="px-2 py-0.5 rounded bg-white/5 hover:bg-white/15 disabled:opacity-25 text-xs">▶</button>
+            </div>
+          </div>
+
+          <!-- Answer Text Content -->
+          <div class="p-3 rounded-xl bg-black/30 border border-white/5 text-xs leading-relaxed text-slate-100">
+            ${node.answers[currSlide]}
+          </div>
+
+          <!-- Clickable Notion Pill & Navigation Dots Row -->
+          <div class="flex items-center justify-between pt-1">
+            <button onclick="alert('Opens Notion Page: ' + '${node.notionTitle}')"
+                    class="px-2.5 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/35 border border-indigo-400/50 text-indigo-300 text-xs font-semibold flex items-center gap-1.5 transition">
+              <span>📖 Open in Notion (${node.notionTitle})</span>
+              <span>↗</span>
+            </button>
+
+            <!-- Navi Dots -->
+            <div class="flex items-center gap-1.5">
+              ${Array.from({ length: totalSlides }).map((_, i) => `
+                <button onclick="setSlide(${chainIdx}, ${i})"
+                        class="h-2 rounded-full transition-all ${i === currSlide ? 'w-5 bg-indigo-400' : 'w-2 bg-white/25 hover:bg-white/50'}"></button>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- AI-Generated Secondary Drill-Down Buttons -->
+          ${node.drillButtons.length > 0 ? `
+            <div class="pt-2.5 border-t border-white/10 space-y-1.5">
+              <div class="text-xs font-semibold text-amber-300/90 flex items-center gap-1">
+                <span>⚡ AI Secondary Drill-Downs (Tap to explore):</span>
+              </div>
+              <div class="flex flex-wrap gap-1.5">
+                ${node.drillButtons.map(btn => `
+                  <button onclick="triggerDrillDown('${btn.targetId}')"
+                          class="px-2.5 py-1.5 rounded-xl bg-indigo-600/25 hover:bg-indigo-600/50 border border-indigo-400/40 text-xs font-semibold text-white transition flex items-center gap-1">
+                    <span>${btn.label}</span>
+                    <span class="text-indigo-300">→</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    // Initial render
+    renderLiveStream();
+    renderAnswerStream();
+  </script>
+</body>
+</html>
