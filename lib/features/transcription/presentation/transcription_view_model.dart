@@ -15,6 +15,7 @@ import '../../knowledge/domain/knowledge_repository.dart';
 import '../../knowledge/data/native_knowledge_repository.dart';
 import '../../recall/data/local_database.dart';
 import '../../recall/domain/transcription_segment.dart';
+import '../../recall/domain/ai_answer_bubble_payload.dart';
 import '../../knowledge/domain/notion_repository.dart';
 import '../../knowledge/data/native_notion_repository.dart';
 import '../../settings/domain/settings_repository.dart';
@@ -390,12 +391,16 @@ class TranscriptionViewModel extends ChangeNotifier {
   bool _showBottomTextInput = false;
   bool get showBottomTextInput => _showBottomTextInput;
 
-  // Auto-Summary State
+  // Auto-Summary & Option 1A Topic Accordion State
   bool _enableAutoSummary = false;
   bool get enableAutoSummary => _enableAutoSummary;
   final Set<String> _unsummarizedSegmentIds = {};
   final Set<String> _expandedSummaryIds = {};
   bool isSummaryExpanded(String id) => _expandedSummaryIds.contains(id);
+
+  // Option 1A: Cached AI Topic Titles & 1-line Summaries per Group ID
+  final Map<String, Map<String, String>> _topicGroupCache = {};
+  final Set<String> _pendingTopicGroupIds = {};
   
   // Diagnostics State
   bool _showDiagnostics = false;
@@ -413,37 +418,260 @@ class TranscriptionViewModel extends ChangeNotifier {
     final minute = _lastSyncTime!.minute.toString().padLeft(2, '0');
     return "$month/$day $hour:$minute";
   }
+
+  /// Returns the constituent child segments (in chronological order, oldest -> newest)
+  /// for a Topic Accordion / Summary segment.
+  List<TranscriptionSegment> getGroupedChildSegments(TranscriptionSegment summarySegment) {
+    if (summarySegment.type != SegmentType.summary || summarySegment.includedSegmentIds.isEmpty) {
+      return const [];
+    }
+    final byId = <String, TranscriptionSegment>{
+      for (final s in _segments) s.id: s,
+    };
+    final children = <TranscriptionSegment>[];
+    for (final id in summarySegment.includedSegmentIds) {
+      final seg = byId[id];
+      if (seg != null) children.add(seg);
+    }
+    children.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return children;
+  }
+
+  /// Instant (<1 ms) heuristic topic title for a batch of grouped speech bubbles
+  static String extractInstantTopicTitle(List<TranscriptionSegment> chronologicalGroup) {
+    if (chronologicalGroup.isEmpty) return "Conversation Group";
+    for (final seg in chronologicalGroup) {
+      if (seg.contextTopic != null && seg.contextTopic!.trim().isNotEmpty) {
+        return seg.contextTopic!.trim();
+      }
+    }
+    final combined = chronologicalGroup.map((s) => s.text.trim()).where((t) => t.isNotEmpty).join(' ');
+    if (combined.isEmpty) return "Conversation Group";
+
+    final stopWords = <String>{
+      'the', 'and', 'for', 'that', 'this', 'with', 'you', 'are', 'was', 'were',
+      'have', 'has', 'had', 'not', 'but', 'what', 'when', 'where', 'who', 'why',
+      'how', 'can', 'could', 'would', 'should', 'will', 'just', 'like', 'about',
+      'into', 'from', 'they', 'them', 'their', 'there', 'here', 'been', 'being',
+      'some', 'more', 'very', 'also', 'then', 'than', 'well', 'yeah', 'okay',
+    };
+    final words = combined
+        .replaceAll(RegExp(r'[^\w\s]'), ' ')
+        .split(RegExp(r'\s+'))
+        .where((w) => w.length >= 3 && !stopWords.contains(w.toLowerCase()))
+        .toList();
+
+    if (words.isEmpty) {
+      final rawWords = combined.split(RegExp(r'\s+')).take(4).join(' ');
+      return rawWords.length > 26 ? "${rawWords.substring(0, 26)}..." : rawWords;
+    }
+
+    final selected = words.take(3).map((w) {
+      return w[0].toUpperCase() + w.substring(1).toLowerCase();
+    }).join(' ');
+    return selected.length > 26 ? "${selected.substring(0, 26)}..." : selected;
+  }
+
+  /// Instant (<1 ms) 1-line summary preview for a batch of grouped speech bubbles
+  static String extractInstantTopicSummary(List<TranscriptionSegment> chronologicalGroup) {
+    if (chronologicalGroup.isEmpty) return "";
+    final snippets = chronologicalGroup.map((s) {
+      final clean = s.text.trim().replaceAll('\n', ' ');
+      return clean.length > 52 ? "${clean.substring(0, 52)}..." : clean;
+    }).toList();
+    if (snippets.length == 1) return "\"${snippets.first}\"";
+    return "\"${snippets.first}\" → \"${snippets.last}\"";
+  }
+
+  static String _formatTimeRange(List<TranscriptionSegment> chronologicalGroup, int count) {
+    if (chronologicalGroup.isEmpty) return "$count Bubbles Grouped";
+    final first = chronologicalGroup.first.timestamp;
+    final last = chronologicalGroup.last.timestamp;
+    final startStr = "${first.hour}:${first.minute.toString().padLeft(2, '0')}";
+    final endStr = "${last.hour}:${last.minute.toString().padLeft(2, '0')}";
+    final timeRange = startStr == endStr ? startStr : "$startStr–$endStr";
+    return "$timeRange • $count Bubbles";
+  }
+
+  /// Pure helper that groups older live audio segments (beyond the newest [keepRecentAudioCount])
+  /// into Option 1A Topic Accordion summary segments.
+  static List<TranscriptionSegment> buildTopicAccordionSegmentList(
+    List<TranscriptionSegment> rawSegmentsDesc, {
+    int keepRecentAudioCount = 3,
+    int maxGroupSize = 4,
+    Set<String> expandedIds = const {},
+    Map<String, Map<String, String>> topicCache = const {},
+    void Function(String groupId, List<TranscriptionSegment> chronologicalGroup)? onNewGroupDetected,
+  }) {
+    // 1. Collect IDs already covered by explicit persisted summary segments
+    final explicitlySummarizedIds = <String>{};
+    for (final s in rawSegmentsDesc) {
+      if (s.type == SegmentType.summary) {
+        explicitlySummarizedIds.addAll(s.includedSegmentIds);
+      }
+    }
+
+    final filtered = rawSegmentsDesc.where((s) => !explicitlySummarizedIds.contains(s.id)).toList();
+
+    // 2. Walk from newest (index 0) to oldest, keeping the newest [keepRecentAudioCount] audio bubbles unfolded
+    final result = <TranscriptionSegment>[];
+    int seenRecentAudio = 0;
+    int i = 0;
+
+    while (i < filtered.length) {
+      final current = filtered[i];
+
+      if (current.type != SegmentType.audio) {
+        current.isExpanded = expandedIds.contains(current.id);
+        result.add(current);
+        i++;
+        continue;
+      }
+
+      if (seenRecentAudio < keepRecentAudioCount) {
+        seenRecentAudio++;
+        result.add(current);
+        i++;
+        continue;
+      }
+
+      // Collect contiguous older audio segments (from newest to oldest in this run)
+      final runDesc = <TranscriptionSegment>[];
+      while (i < filtered.length && filtered[i].type == SegmentType.audio) {
+        runDesc.add(filtered[i]);
+        i++;
+      }
+
+      // If only 1 older audio segment in this run, keep it unfolded
+      if (runDesc.length < 2) {
+        result.addAll(runDesc);
+        continue;
+      }
+
+      // Chunk from oldest to newest so older group IDs stay 100% stable as new speech arrives
+      final runChronological = runDesc.reversed.toList();
+      final chunksChronological = <List<TranscriptionSegment>>[];
+      int idx = 0;
+      while (idx < runChronological.length) {
+        final end = (idx + maxGroupSize <= runChronological.length)
+            ? idx + maxGroupSize
+            : runChronological.length;
+        chunksChronological.add(runChronological.sublist(idx, end));
+        idx = end;
+      }
+
+      // If the newest chunk in this older run has only 1 bubble, merge it into the preceding chunk
+      if (chunksChronological.length > 1 && chunksChronological.last.length == 1) {
+        final lone = chunksChronological.removeLast();
+        chunksChronological.last.addAll(lone);
+      }
+
+      // Emit chunks in newest-first order to match the DESC list
+      for (final chunk in chunksChronological.reversed) {
+        if (chunk.length < 2) {
+          result.addAll(chunk.reversed);
+          continue;
+        }
+        final groupId = "topic_group_${chunk.first.id}_${chunk.last.id}";
+        final cached = topicCache[groupId];
+        final title = cached?['title'] ?? extractInstantTopicTitle(chunk);
+        final summary = cached?['summary'] ?? extractInstantTopicSummary(chunk);
+        final metaBadge = _formatTimeRange(chunk, chunk.length);
+
+        if (cached == null && onNewGroupDetected != null) {
+          onNewGroupDetected(groupId, chunk);
+        }
+
+        final groupSegment = TranscriptionSegment(
+          id: groupId,
+          text: summary,
+          timestamp: chunk.last.timestamp,
+          isUser: false,
+          type: SegmentType.summary,
+          bubbleName: title,
+          bubbleIcon: "📑",
+          includedSegmentIds: chunk.map((s) => s.id).toList(),
+          isExpanded: expandedIds.contains(groupId),
+          contextTopic: metaBadge,
+        );
+        result.add(groupSegment);
+      }
+    }
+
+    return result;
+  }
+
+  void _scheduleTopicGroupEnrichment(String groupId, List<TranscriptionSegment> chronologicalGroup) {
+    if (_topicGroupCache.containsKey(groupId) || _pendingTopicGroupIds.contains(groupId)) {
+      return;
+    }
+    _pendingTopicGroupIds.add(groupId);
+    Future.microtask(() async {
+      try {
+        final textLines = chronologicalGroup.map((s) => "- ${s.text.trim()}").join("\n");
+        final prompt = """
+Summarize these ${chronologicalGroup.length} spoken sentences into a short topic header and 1-line summary.
+Return ONLY valid JSON:
+{"title": "2 to 4 Word Topic", "summary": "One concise sentence summarizing the key point."}
+
+Sentences:
+$textLines
+""";
+        final res = await _activeAiService.generate(prompt, model: "gemini-2.5-flash");
+        res.fold(
+          (_) {},
+          (raw) {
+            String clean = raw.trim().replaceAll('```json', '').replaceAll('```', '').trim();
+            final start = clean.indexOf('{');
+            final end = clean.lastIndexOf('}');
+            if (start != -1 && end != -1 && end > start) {
+              clean = clean.substring(start, end + 1);
+            }
+            final decoded = jsonDecode(clean);
+            if (decoded is Map) {
+              final title = (decoded['title'] ?? '').toString().trim();
+              final summary = (decoded['summary'] ?? '').toString().trim();
+              if (title.isNotEmpty && summary.isNotEmpty) {
+                _topicGroupCache[groupId] = {
+                  'title': title,
+                  'summary': summary,
+                };
+                notifyListeners();
+              }
+            }
+          },
+        );
+      } catch (_) {
+        // Keep instant heuristic title/summary on failure
+      } finally {
+        _pendingTopicGroupIds.remove(groupId);
+      }
+    });
+  }
   
   List<TranscriptionSegment> get segments {
     // Synced Notion data should only be used for context, never shown as chat bubbles
     var list = _segments.where((s) => s.type != SegmentType.notion).toList();
 
-    // Filter Summarized Segments (Collapse Logic)
-    final collapsedSummaries = list.where((s) => 
-        s.type == SegmentType.summary && !isSummaryExpanded(s.id)
-    ).toList();
-
-    final hiddenIds = <String>{};
-    for (var summary in collapsedSummaries) {
-       hiddenIds.addAll(summary.includedSegmentIds);
-    }
-
-    if (hiddenIds.isNotEmpty) {
-       list = list.where((s) => !hiddenIds.contains(s.id)).toList();
-    }
-
-
-    // Filter Search
+    // When searching, return matching individual bubbles directly without grouping
     if (_searchQuery.isNotEmpty) {
-      list = list.where((s) => s.text.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+      list = list
+          .where((s) =>
+              s.type != SegmentType.summary &&
+              s.text.toLowerCase().contains(_searchQuery.toLowerCase()))
+          .toList();
+      return list;
     }
-    
-    for (var s in list) {
-      s.isExpanded = isSummaryExpanded(s.id);
-    }
-    
-    // We return the full list even when frozen, so new segments naturally turn into bubbles at the visual bottom
-    return list;
+
+    // Option 1A: Keep newest 3 live speech bubbles unfolded and group older speech bubbles into Topic Accordions
+    return buildTopicAccordionSegmentList(
+      list,
+      keepRecentAudioCount: 3,
+      maxGroupSize: 4,
+      expandedIds: _expandedSummaryIds,
+      topicCache: _topicGroupCache,
+      onNewGroupDetected: _scheduleTopicGroupEnrichment,
+    );
   }
   
   List<TranscriptionSegment> get notionConvoStarters {
@@ -567,6 +795,7 @@ class TranscriptionViewModel extends ChangeNotifier {
   
   // Selection State
   final Set<String> _selectedIds = {};
+  Set<String> get selectedIds => _selectedIds;
   bool get isSelectionMode => _selectedIds.isNotEmpty;
   int get selectionCount => _selectedIds.length;
   bool isSelected(String id) => _selectedIds.contains(id);
@@ -1556,6 +1785,296 @@ Analysis:
     notifyListeners();
   }
 
+  static String buildSecondaryDrillButtonsPrompt({
+    required String originalQuery,
+    required String currentAnswer,
+    String? notionContext,
+  }) {
+    final contextSnippet = (notionContext != null && notionContext.trim().isNotEmpty)
+        ? (notionContext.length > 700 ? "${notionContext.substring(0, 700)}..." : notionContext)
+        : "";
+    return """
+You are an interactive AI drill-down assistant.
+User's Conversation Excerpt:
+"$originalQuery"
+
+Current Answer Shown to User:
+"$currentAnswer"
+${contextSnippet.isNotEmpty ? "\nAvailable Notion Reference Context:\n$contextSnippet\n" : ""}
+Task:
+Generate exactly 3 short, distinct, high-value secondary answer type button labels (2 to 4 words each, starting with a relevant emoji) that let the user drill down deeper into specific angles, details, metrics, examples, counter-arguments, or action steps.
+Return ONLY a JSON array of 3 strings. Example:
+["📈 Key Metrics", "⚠️ Risk Factors", "🎯 Action Steps"]
+""";
+  }
+
+  static List<String> parseSecondaryDrillButtons(String rawOutput, {String? notionContext}) {
+    final fallback = <String>[
+      if (notionContext != null && notionContext.contains("Long Answer:"))
+        "📄 Full Breakdown"
+      else
+        "🔍 Key Details",
+      "⚖️ Bull vs Bear",
+      "🎯 Action Steps",
+    ];
+    try {
+      String clean = rawOutput.trim().replaceAll('```json', '').replaceAll('```', '').trim();
+      final start = clean.indexOf('[');
+      final end = clean.lastIndexOf(']');
+      if (start != -1 && end != -1 && end > start) {
+        clean = clean.substring(start, end + 1);
+      }
+      final decoded = jsonDecode(clean);
+      if (decoded is List) {
+        final parsed = decoded
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .take(3)
+            .toList();
+        if (parsed.isNotEmpty) return parsed;
+      }
+    } catch (_) {}
+    return fallback;
+  }
+
+  Future<void> _updateSegmentPayloadInDb(
+    String segmentId,
+    AiAnswerBubblePayload payload, {
+    String? sourceUrl,
+    String? contextTopic,
+  }) async {
+    final idx = _segments.indexWhere((s) => s.id == segmentId);
+    if (idx == -1) return;
+    final old = _segments[idx];
+    final updated = TranscriptionSegment(
+      id: old.id,
+      text: payload.toJsonString(),
+      timestamp: old.timestamp,
+      isUser: old.isUser,
+      type: old.type,
+      sourceUrl: sourceUrl ?? old.sourceUrl,
+      isSynced: old.isSynced,
+      isSelected: old.isSelected,
+      bubbleName: old.bubbleName,
+      bubbleIcon: old.bubbleIcon,
+      includedSegmentIds: old.includedSegmentIds,
+      isExpanded: old.isExpanded,
+      locationName: old.locationName,
+      contextTopic: contextTopic ?? old.contextTopic,
+      confidence: old.confidence,
+    );
+    _segments[idx] = updated;
+    if (_viewingAiSegmentId == segmentId) {
+      _aiResponse = updated.text;
+      _aiResponseList = payload.responses;
+    }
+    notifyListeners();
+    await _db.insertSegment(updated);
+  }
+
+  Future<void> _generateSecondaryDrillButtonsForSegment({
+    required String segmentId,
+    required int breadcrumbIndex,
+    required String originalQuery,
+    required List<String> currentResponses,
+    String? notionContext,
+  }) async {
+    final primaryText = currentResponses.isNotEmpty ? currentResponses.first : "";
+    final prompt = buildSecondaryDrillButtonsPrompt(
+      originalQuery: originalQuery,
+      currentAnswer: primaryText,
+      notionContext: notionContext,
+    );
+
+    List<String> buttons = [];
+    try {
+      final res = await _activeAiService.generate(prompt, model: "gemini-2.5-flash");
+      res.fold(
+        (_) {
+          buttons = parseSecondaryDrillButtons("", notionContext: notionContext);
+        },
+        (raw) {
+          buttons = parseSecondaryDrillButtons(raw, notionContext: notionContext);
+        },
+      );
+    } catch (_) {
+      buttons = parseSecondaryDrillButtons("", notionContext: notionContext);
+    }
+
+    final idx = _segments.indexWhere((s) => s.id == segmentId);
+    if (idx == -1) return;
+    final currentPayload = AiAnswerBubblePayload.fromRawText(_segments[idx].text);
+    final updatedBreadcrumbs = List<AiBreadcrumbNode>.from(currentPayload.breadcrumbs);
+    if (breadcrumbIndex >= 0 && breadcrumbIndex < updatedBreadcrumbs.length) {
+      updatedBreadcrumbs[breadcrumbIndex] = updatedBreadcrumbs[breadcrumbIndex].copyWith(
+        drillButtons: buttons,
+      );
+    }
+
+    final isStillOnSameBreadcrumb = currentPayload.currentBreadcrumbIndex == breadcrumbIndex;
+    final updatedPayload = currentPayload.copyWith(
+      drillButtons: isStillOnSameBreadcrumb ? buttons : currentPayload.drillButtons,
+      isGeneratingDrillButtons: isStillOnSameBreadcrumb ? false : currentPayload.isGeneratingDrillButtons,
+      breadcrumbs: updatedBreadcrumbs,
+    );
+
+    await _updateSegmentPayloadInDb(segmentId, updatedPayload);
+  }
+
+  /// Option 2B: In-place morph when an AI secondary drill-down chip is tapped on an Answer Bubble
+  Future<void> drillDownOnAiSegment(String segmentId, String drillLabel) async {
+    final idx = _segments.indexWhere((s) => s.id == segmentId);
+    if (idx == -1) return;
+
+    final segment = _segments[idx];
+    final payload = AiAnswerBubblePayload.fromRawText(segment.text);
+    final cleanLabel = drillLabel.trim();
+    if (cleanLabel.isEmpty) return;
+
+    // Short label for the breadcrumb trail
+    final shortCrumbLabel = cleanLabel.length > 22
+        ? "${cleanLabel.substring(0, 22).trim()}…"
+        : cleanLabel;
+
+    final baseBreadcrumbs = payload.breadcrumbs
+        .take(payload.currentBreadcrumbIndex + 1)
+        .toList();
+
+    final loadingResponses = ["⚡ Drilling down into **$cleanLabel**..."];
+    final newNode = AiBreadcrumbNode(
+      label: shortCrumbLabel,
+      responses: loadingResponses,
+      drillButtons: const [],
+    );
+    final nextBreadcrumbs = [...baseBreadcrumbs, newNode];
+    final newBreadcrumbIdx = nextBreadcrumbs.length - 1;
+
+    // Immediately morph bubble in-place (0 ms UI transition)
+    final loadingPayload = payload.copyWith(
+      responses: loadingResponses,
+      drillButtons: const [],
+      isGeneratingDrillButtons: true,
+      breadcrumbs: nextBreadcrumbs,
+      currentBreadcrumbIndex: newBreadcrumbIdx,
+    );
+    await _updateSegmentPayloadInDb(segmentId, loadingPayload);
+
+    // Stage 1: Generate 2 swipeable drill-down answer angles (Direct Answer + Deeper Breakdown)
+    final previousAnswersText = payload.responses.join("\n\n");
+    final queryContext = payload.originalQuery ?? "";
+    final notionCtx = payload.notionContext ?? "";
+
+    final drillPrompt = """
+You are an expert assistant drilling down into a specific secondary angle for the user.
+Original Conversation Excerpt: "$queryContext"
+Previous Answer Context:
+$previousAnswersText
+${notionCtx.isNotEmpty ? "\nNotion Knowledge Base Context:\n$notionCtx\n" : ""}
+Selected Secondary Drill-Down Angle: "$cleanLabel"
+
+Task:
+Provide 2 distinct, swipeable answer slides specifically addressing "$cleanLabel":
+- Slide 1: Direct, high-impact answer (1-2 concise sentences) focused on "$cleanLabel".
+- Slide 2: Deeper breakdown with 2-3 bullet points, metrics, or actionable specifics for "$cleanLabel".
+
+Return ONLY valid JSON in this exact format:
+{
+  "responses": [
+    "Slide 1 markdown text...",
+    "Slide 2 markdown text..."
+  ]
+}
+""";
+
+    List<String> drillResponses = [];
+    try {
+      final res = await _activeAiService.generate(drillPrompt, model: _selectedModel);
+      res.fold(
+        (failure) {
+          drillResponses = ["Error generating drill-down: ${failure.message}"];
+        },
+        (raw) {
+          String clean = raw.trim().replaceAll('```json', '').replaceAll('```', '').trim();
+          final start = clean.indexOf('{');
+          final end = clean.lastIndexOf('}');
+          if (start != -1 && end != -1 && end > start) {
+            try {
+              final decoded = jsonDecode(clean.substring(start, end + 1));
+              if (decoded is Map && decoded['responses'] is List) {
+                drillResponses = (decoded['responses'] as List)
+                    .map((e) => e.toString().trim())
+                    .where((e) => e.isNotEmpty)
+                    .toList();
+              }
+            } catch (_) {}
+          }
+          if (drillResponses.isEmpty && raw.trim().isNotEmpty) {
+            drillResponses = [raw.trim()];
+          }
+        },
+      );
+    } catch (e) {
+      drillResponses = ["Error: $e"];
+    }
+
+    if (drillResponses.isEmpty) {
+      drillResponses = ["No additional details found for $cleanLabel."];
+    }
+
+    // Preserve Notion link on the primary slide if segment has a Notion sourceUrl
+    if (segment.sourceUrl != null &&
+        segment.sourceUrl!.isNotEmpty &&
+        (segment.sourceUrl!.contains("notion.so") || segment.sourceUrl!.contains("notion.site"))) {
+      if (!drillResponses.first.contains("notion.so") && !drillResponses.first.contains("notion.site")) {
+        drillResponses[0] = "${drillResponses[0]} [more](${segment.sourceUrl})";
+      }
+    }
+
+    final latestIdx = _segments.indexWhere((s) => s.id == segmentId);
+    if (latestIdx == -1) return;
+    final latestPayload = AiAnswerBubblePayload.fromRawText(_segments[latestIdx].text);
+    final updatedCrumbs = List<AiBreadcrumbNode>.from(latestPayload.breadcrumbs);
+    if (newBreadcrumbIdx >= 0 && newBreadcrumbIdx < updatedCrumbs.length) {
+      updatedCrumbs[newBreadcrumbIdx] = updatedCrumbs[newBreadcrumbIdx].copyWith(
+        responses: drillResponses,
+      );
+    }
+
+    final stage1Payload = latestPayload.copyWith(
+      responses: drillResponses,
+      breadcrumbs: updatedCrumbs,
+      isGeneratingDrillButtons: true,
+    );
+    await _updateSegmentPayloadInDb(segmentId, stage1Payload);
+
+    // Stage 2 (Async): Generate 3 new secondary drill-down buttons for this deeper level
+    unawaited(_generateSecondaryDrillButtonsForSegment(
+      segmentId: segmentId,
+      breadcrumbIndex: newBreadcrumbIdx,
+      originalQuery: "$queryContext -> $cleanLabel",
+      currentResponses: drillResponses,
+      notionContext: notionCtx,
+    ));
+  }
+
+  /// Option 2B: Instant (0 ms) jump to any previously visited breadcrumb level
+  Future<void> jumpToAiBreadcrumb(String segmentId, int breadcrumbIndex) async {
+    final idx = _segments.indexWhere((s) => s.id == segmentId);
+    if (idx == -1) return;
+
+    final payload = AiAnswerBubblePayload.fromRawText(_segments[idx].text);
+    if (breadcrumbIndex < 0 || breadcrumbIndex >= payload.breadcrumbs.length) return;
+
+    final targetNode = payload.breadcrumbs[breadcrumbIndex];
+    final jumpedPayload = payload.copyWith(
+      responses: targetNode.responses,
+      drillButtons: targetNode.drillButtons,
+      isGeneratingDrillButtons: false,
+      currentBreadcrumbIndex: breadcrumbIndex,
+    );
+    await _updateSegmentPayloadInDb(segmentId, jumpedPayload);
+  }
+
   Future<void> processWithBubble(AiBubble bubble) async {
     final textToProcess = _segments
         .where((s) => _selectedIds.contains(s.id))
@@ -1565,15 +2084,42 @@ Analysis:
     if (textToProcess.isEmpty) return;
     
     _isAiProcessing = true;
-    _isAiProcessing = true;
     _aiResponse = "";
     _aiResponseList = [];
     
     // Init with first name or generic "Processing..."
     _aiResponseList.add("${bubble.name} running..."); 
     
-    _viewingAiSegmentId = null; // New generation
     _currentSourceBubble = bubble; // Capture source
+
+    // Immediately create the single Answer Bubble in the conversation stream (Option 2B Stage 0)
+    final answerSegmentId = DateTime.now().millisecondsSinceEpoch.toString();
+    _viewingAiSegmentId = answerSegmentId;
+    final initialPayload = AiAnswerBubblePayload(
+      responses: ["⚡ ${bubble.name} analyzing..."],
+      drillButtons: const [],
+      isGeneratingDrillButtons: true,
+      breadcrumbs: [
+        AiBreadcrumbNode(
+          label: "Overview",
+          responses: ["⚡ ${bubble.name} analyzing..."],
+        ),
+      ],
+      currentBreadcrumbIndex: 0,
+      originalQuery: textToProcess,
+    );
+    final initialSegment = TranscriptionSegment(
+      id: answerSegmentId,
+      text: initialPayload.toJsonString(),
+      timestamp: DateTime.now(),
+      type: SegmentType.aiResponse,
+      isUser: false,
+      isSelected: false,
+      bubbleName: bubble.name,
+      bubbleIcon: bubble.icon,
+    );
+    _segments.insert(0, initialSegment);
+    await _db.insertSegment(initialSegment);
     notifyListeners();
 
     // Prepare Prompts
@@ -1631,6 +2177,10 @@ Analysis:
     _aiResponseList = List.filled(promptsToRun.length, "");
     _lastFoundNotionUrl = null;
     _lastFoundNotionTitle = null;
+
+    final Set<String> usedNotionIds = {};
+    String accumulatedNotionContext = "";
+    String? extraLongAnswerSlide;
     
     // Run Prompts Loop
     for (int i = 0; i < promptsToRun.length; i++) {
@@ -1638,7 +2188,6 @@ Analysis:
         
         // --- Context Logic (Reused) ---
         String injectedContext = "";
-        String? foundNotionUrl; // Capture URL
         bool skipLlm = false;
 
         if (bubble.useNotionContext) {
@@ -1655,9 +2204,15 @@ Analysis:
                      injectedContext = "\n(No Notion pages found. Import pages in Settings.)\n";
                      return;
                   }
+
+                  // Exclude already-selected Notion entries on subsequent multi-output slides
+                  final availableHeaders = headers
+                      .where((h) => !usedNotionIds.contains(h['id']))
+                      .toList();
+                  final pool = availableHeaders.isNotEmpty ? availableHeaders : headers;
                   
                   // 2. Select Best Match (AI)
-                  final candidateList = headers.map((h) => "[ID: ${h['id']}] ${h['text']} (URL: ${h['url']})").join("\n");
+                  final candidateList = pool.map((h) => "[ID: ${h['id']}] ${h['text']} (URL: ${h['url']})").join("\n");
                   
                   injectedContext += "\n\n--- Available Notion Pages (Index) ---\n$candidateList\n----------------------------------\n";
                   
@@ -1707,7 +2262,7 @@ If no entry is relevant, return "NONE".
                      int maxOverlap = 0;
                      String? bestOverlapId;
 
-                     for (final h in headers) {
+                     for (final h in pool) {
                         final hText = (h['text'] ?? '').toLowerCase();
                         int overlap = 0;
                         for (final tok in queryTokens) {
@@ -1727,12 +2282,17 @@ If no entry is relevant, return "NONE".
                   
                   // 3. Fetch Content
                   if (bestId != "NONE" && bestId.isNotEmpty) {
+                      usedNotionIds.add(bestId);
                       final contentResult = await _knowledgeRepository.getSegmentById(bestId);
                       contentResult.fold(
                         (f) => injectedContext += "\n(Failed to load selected page)\n",
                         (segment) {
                            injectedContext += "\n\n--- Notion Context (AI Selected) ---\n${segment.text}\n----------------------------------\n";
-                           foundNotionUrl = segment.sourceUrl;
+                           if (accumulatedNotionContext.isEmpty) {
+                             accumulatedNotionContext = segment.text;
+                           } else {
+                             accumulatedNotionContext += "\n\n${segment.text}";
+                           }
 
                            // Extract short answer and present directly (User Request)
                            final textContent = segment.text;
@@ -1756,10 +2316,23 @@ If no entry is relevant, return "NONE".
                                ? segment.sourceUrl!
                                : "https://notion.so/${segment.id.replaceAll('-', '')}";
                            
-                           _lastFoundNotionUrl = cleanUrl;
+                           _lastFoundNotionUrl ??= cleanUrl;
 
                            final titleMatch = RegExp(r'Notion Page:\s*(.*)', caseSensitive: false).firstMatch(textContent);
-                           _lastFoundNotionTitle = titleMatch != null ? titleMatch.group(1)!.trim() : "Notion Context";
+                           final pageTitle = titleMatch != null ? titleMatch.group(1)!.trim() : "Notion Context";
+                           _lastFoundNotionTitle ??= pageTitle;
+
+                           // Also extract Long Answer if present on the primary match so user can swipe to it
+                           if (i == 0 && extraLongAnswerSlide == null) {
+                             final longMatch = RegExp(r'Long Answer:\s*([\s\S]*?)(?:\n[A-Za-z0-9 _-]+:|\n----|$)', caseSensitive: false)
+                                 .firstMatch(textContent);
+                             if (longMatch != null) {
+                               final longText = longMatch.group(1)!.trim();
+                               if (longText.isNotEmpty && longText != shortAnswer) {
+                                 extraLongAnswerSlide = "**$pageTitle — Detailed Answer:**\n$longText [more]($cleanUrl)";
+                               }
+                             }
+                           }
 
                            _aiResponseList[i] = "$shortAnswer [more]($cleanUrl)";
                            if (i == 0) _aiResponse = _aiResponseList[i];
@@ -1771,10 +2344,6 @@ If no entry is relevant, return "NONE".
                   }
               }
            );
-        }
-        
-        if (bubble.useGoogleContext && isGoogleAuthenticated) {
-             // Fetch Google Context
         }
 
         if (!skipLlm) {
@@ -1800,6 +2369,33 @@ If no entry is relevant, return "NONE".
                        if (i == 0) _aiResponse = _aiResponseList[i];
                     } 
                   );
+                  // Live-stream update into the Answer Bubble segment
+                  final streamingSlides = _aiResponseList.where((s) => s.trim().isNotEmpty).toList();
+                  if (streamingSlides.isNotEmpty) {
+                    final streamPayload = initialPayload.copyWith(
+                      responses: streamingSlides,
+                      breadcrumbs: [
+                        AiBreadcrumbNode(
+                          label: "Overview",
+                          responses: streamingSlides,
+                        ),
+                      ],
+                    );
+                    final segIdx = _segments.indexWhere((s) => s.id == answerSegmentId);
+                    if (segIdx != -1) {
+                      _segments[segIdx] = TranscriptionSegment(
+                        id: answerSegmentId,
+                        text: streamPayload.toJsonString(),
+                        timestamp: _segments[segIdx].timestamp,
+                        type: SegmentType.aiResponse,
+                        isUser: false,
+                        bubbleName: bubble.name,
+                        bubbleIcon: bubble.icon,
+                        sourceUrl: _lastFoundNotionUrl,
+                        contextTopic: _lastFoundNotionTitle,
+                      );
+                    }
+                  }
                   notifyListeners();
                }
                if (_aiResponseList[i].isEmpty) {
@@ -1814,18 +2410,57 @@ If no entry is relevant, return "NONE".
             }
         }
     }
-    
-    // Finalize
-    _isAiProcessing = false;
-    // Pack into JSON if multiple
-    if (_aiResponseList.length > 1) {
-       _aiResponse = jsonEncode({"responses": _aiResponseList});
-    } else if (_aiResponseList.isNotEmpty && _aiResponseList.first.isNotEmpty) {
-       _aiResponse = _aiResponseList.first;
-    } else if (_aiResponse == "Analyzing..." || _aiResponse.isEmpty) {
-       _aiResponse = "Analysis complete.";
+
+    // Deduplicate and finalize swipeable answer slides
+    final finalSlides = <String>[];
+    for (final s in _aiResponseList) {
+      final trimmed = s.trim();
+      if (trimmed.isNotEmpty && !finalSlides.contains(trimmed)) {
+        finalSlides.add(trimmed);
+      }
     }
-    notifyListeners();
+    if (extraLongAnswerSlide != null && !finalSlides.contains(extraLongAnswerSlide!)) {
+      finalSlides.insert(finalSlides.length >= 1 ? 1 : 0, extraLongAnswerSlide!);
+    }
+    if (finalSlides.isEmpty) {
+      finalSlides.add("Analysis complete.");
+    }
+    _aiResponseList = finalSlides;
+
+    // Stage 1 Complete: Immediately persist & display primary + swipeable answers (0 ms added delay)
+    _isAiProcessing = false;
+    final stage1Payload = AiAnswerBubblePayload(
+      responses: finalSlides,
+      drillButtons: const [],
+      isGeneratingDrillButtons: true,
+      breadcrumbs: [
+        AiBreadcrumbNode(
+          label: "Overview",
+          responses: finalSlides,
+          drillButtons: const [],
+        ),
+      ],
+      currentBreadcrumbIndex: 0,
+      originalQuery: textToProcess,
+      notionContext: accumulatedNotionContext.isNotEmpty ? accumulatedNotionContext : null,
+    );
+    _aiResponse = stage1Payload.toJsonString();
+    _lastSavedAiContent = _aiResponse;
+    await _updateSegmentPayloadInDb(
+      answerSegmentId,
+      stage1Payload,
+      sourceUrl: _lastFoundNotionUrl,
+      contextTopic: _lastFoundNotionTitle,
+    );
+
+    // Stage 2 (Async Background): Generate 3 AI secondary drill-down buttons without blocking Stage 1
+    unawaited(_generateSecondaryDrillButtonsForSegment(
+      segmentId: answerSegmentId,
+      breadcrumbIndex: 0,
+      originalQuery: textToProcess,
+      currentResponses: finalSlides,
+      notionContext: accumulatedNotionContext.isNotEmpty ? accumulatedNotionContext : null,
+    ));
   }
 
   Future<void> pauseListeningForPrompt() async {

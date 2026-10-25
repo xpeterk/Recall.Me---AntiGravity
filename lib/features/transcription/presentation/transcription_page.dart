@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../transcription/presentation/transcription_view_model.dart';
 import '../../recall/domain/transcription_segment.dart';
@@ -512,8 +512,11 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
 
                         return Dismissible(
                           key: Key(segment.id),
-                          direction: DismissDirection.startToEnd,
+                          direction: segment.type == SegmentType.summary
+                              ? DismissDirection.none
+                              : DismissDirection.startToEnd,
                           confirmDismiss: (direction) async {
+                            if (segment.type == SegmentType.summary) return false;
                             viewModel.startEditing(segment.id);
                             return false; 
                           },
@@ -528,9 +531,15 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                             isSelectionMode: viewModel.isSelectionMode,
                             isSelected: isSelected,
                             onToggleExpand: viewModel.toggleSummaryExpansion,
+                            onDrillDown: viewModel.drillDownOnAiSegment,
+                            onBreadcrumbTap: viewModel.jumpToAiBreadcrumb,
+                            groupedChildren: segment.type == SegmentType.summary
+                                ? viewModel.getGroupedChildSegments(segment)
+                                : null,
+                            selectedSegmentIds: viewModel.selectedIds,
                             showDiagnostics: viewModel.showDiagnostics,
                             onTap: (id) {
-                              if (segment.type == SegmentType.aiResponse) {
+                              if (segment.type == SegmentType.aiResponse && id == segment.id) {
                                  viewModel.viewAiSegment(segment);
                                  showModalBottomSheet(
                                    context: context,
@@ -540,14 +549,8 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                                  ).then((_) {
                                     viewModel.clearAiResponse(); 
                                  });
-                              } else if (segment.type == SegmentType.summary) {
-                                  viewModel.processWithBubble(viewModel.bubbles.firstWhere((b) => b.name.contains("Fact Check"), orElse: () => viewModel.bubbles.first));
-                                  showModalBottomSheet(
-                                     context: context,
-                                     backgroundColor: Colors.transparent,
-                                     isScrollControlled: true,
-                                     builder: (context) => const AiResultBottomSheet(),
-                                  );
+                              } else if (segment.type == SegmentType.summary && id == segment.id) {
+                                 viewModel.toggleSummaryExpansion(segment.id);
                               } else if (!viewModel.isFrozen) {
                                  viewModel.enterSelectionMode(id);
                               } else {
@@ -644,35 +647,27 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
 
                              if (spokenPrompt != null && spokenPrompt.isNotEmpty && mounted) {
                                viewModel.processWithCustomPrompt(spokenPrompt);
-                               showModalBottomSheet(
-                                 context: context,
-                                 backgroundColor: Colors.transparent,
-                                 isScrollControlled: true,
-                                 builder: (context) => const AiResultBottomSheet(),
-                               ).then((_) {
-                                 if (viewModel.aiResponse.isNotEmpty && !viewModel.isViewingExistingAi) {
-                                   viewModel.saveAiMemory("Auto Save", viewModel.aiResponse);
-                                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Analysis Saved to Chat")));
-                                 }
-                                 viewModel.exitSelectionMode();
-                               });
+                               viewModel.exitSelectionMode();
+                               if (_scrollController.hasClients) {
+                                 _scrollController.animateTo(
+                                   0,
+                                   duration: const Duration(milliseconds: 250),
+                                   curve: Curves.easeOut,
+                                 );
+                               }
                              }
                              return;
                            }
 
                            viewModel.processWithBubble(bubble);
-                           showModalBottomSheet(
-                             context: context,
-                             backgroundColor: Colors.transparent,
-                             isScrollControlled: true,
-                             builder: (context) => const AiResultBottomSheet(),
-                           ).then((_) {
-                             if (viewModel.aiResponse.isNotEmpty && !viewModel.isViewingExistingAi) {
-                               viewModel.saveAiMemory("Auto Save", viewModel.aiResponse);
-                               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Analysis Saved to Chat")));
-                             }
-                             viewModel.exitSelectionMode();
-                           }); 
+                           viewModel.exitSelectionMode();
+                           if (_scrollController.hasClients) {
+                             _scrollController.animateTo(
+                               0,
+                               duration: const Duration(milliseconds: 250),
+                               curve: Curves.easeOut,
+                             );
+                           }
                         },
                         onBackgroundToggle: () {
                            viewModel.toggleBackgroundMode(true);

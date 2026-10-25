@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:recall_me_native/features/transcription/presentation/transcription_view_model.dart';
+import 'package:recall_me_native/features/recall/domain/transcription_segment.dart';
+import 'package:recall_me_native/features/recall/domain/ai_answer_bubble_payload.dart';
 
 void main() {
   group('TranscriptionViewModel Dynamic Starter Parsing', () {
@@ -100,6 +102,108 @@ Summary: This is the summary at the bottom.
       expect(prompt.contains(topic), isTrue);
       expect(prompt.contains(notionContent), isTrue);
       expect(prompt.contains("concise, helpful insight or synthesis"), isTrue);
+    });
+  });
+
+  group('Option 1A: Topic Accordion Grouping for Older Live Bubbles', () {
+    test('keeps newest 3 audio bubbles unfolded and groups older audio bubbles into Topic Accordion cards', () {
+      final baseTime = DateTime(2026, 10, 25, 14, 0);
+      // 7 audio segments in DESC order (s7 is newest, s1 is oldest)
+      final rawDesc = List.generate(7, (idx) {
+        final num = 7 - idx;
+        return TranscriptionSegment(
+          id: 's$num',
+          text: 'Spoken sentence number $num about quarterly revenue growth.',
+          timestamp: baseTime.add(Duration(minutes: num)),
+          type: SegmentType.audio,
+        );
+      });
+
+      final grouped = TranscriptionViewModel.buildTopicAccordionSegmentList(
+        rawDesc,
+        keepRecentAudioCount: 3,
+        maxGroupSize: 4,
+      );
+
+      // Should have 3 newest audio bubbles (s7, s6, s5) + 1 summary group (containing s1..s4)
+      expect(grouped.length, equals(4));
+      expect(grouped[0].id, equals('s7'));
+      expect(grouped[1].id, equals('s6'));
+      expect(grouped[2].id, equals('s5'));
+      expect(grouped[3].type, equals(SegmentType.summary));
+      expect(grouped[3].id, equals('topic_group_s1_s4'));
+      expect(grouped[3].includedSegmentIds, equals(['s1', 's2', 's3', 's4']));
+    });
+
+    test('marks Topic Accordion as expanded when groupId is in expandedIds', () {
+      final baseTime = DateTime(2026, 10, 25, 14, 0);
+      final rawDesc = List.generate(6, (idx) {
+        final num = 6 - idx;
+        return TranscriptionSegment(
+          id: 's$num',
+          text: 'Discussion point $num on product roadmap.',
+          timestamp: baseTime.add(Duration(minutes: num)),
+          type: SegmentType.audio,
+        );
+      });
+
+      final grouped = TranscriptionViewModel.buildTopicAccordionSegmentList(
+        rawDesc,
+        keepRecentAudioCount: 3,
+        maxGroupSize: 4,
+        expandedIds: {'topic_group_s1_s3'},
+      );
+
+      expect(grouped.last.type, equals(SegmentType.summary));
+      expect(grouped.last.id, equals('topic_group_s1_s3'));
+      expect(grouped.last.isExpanded, isTrue);
+    });
+  });
+
+  group('Option 2B: Answer Bubble In-Place Breadcrumb Morph & Secondary AI Drill-Downs', () {
+    test('AiAnswerBubblePayload serializes and deserializes responses, drillButtons, and breadcrumbs', () {
+      const payload = AiAnswerBubblePayload(
+        responses: ['Primary Short Answer', 'Detailed Second Answer'],
+        drillButtons: ['📈 Bull Case Metrics', '⚠️ Risk Factors', '🎯 Action Steps'],
+        isGeneratingDrillButtons: false,
+        breadcrumbs: [
+          AiBreadcrumbNode(
+            label: 'Overview',
+            responses: ['Primary Short Answer', 'Detailed Second Answer'],
+            drillButtons: ['📈 Bull Case Metrics', '⚠️ Risk Factors', '🎯 Action Steps'],
+          ),
+          AiBreadcrumbNode(
+            label: '📈 Bull Case Metrics',
+            responses: ['Drill-down slide 1', 'Drill-down slide 2'],
+            drillButtons: ['💰 Margin Expansion', '🚀 Enterprise ARR'],
+          ),
+        ],
+        currentBreadcrumbIndex: 1,
+        originalQuery: 'What is our bull case for Q4?',
+      );
+
+      final jsonStr = payload.toJsonString();
+      final restored = AiAnswerBubblePayload.fromRawText(jsonStr);
+
+      expect(restored.responses, equals(['Primary Short Answer', 'Detailed Second Answer']));
+      expect(restored.drillButtons.length, equals(3));
+      expect(restored.breadcrumbs.length, equals(2));
+      expect(restored.currentBreadcrumbIndex, equals(1));
+      expect(restored.breadcrumbs[1].label, equals('📈 Bull Case Metrics'));
+      expect(restored.originalQuery, equals('What is our bull case for Q4?'));
+    });
+
+    test('parseSecondaryDrillButtons parses AI JSON array and provides clean fallback on malformed output', () {
+      const rawJson = '```json\n["📈 Revenue Drivers", "⚠️ Margin Risks", "🎯 Next Steps"]\n```';
+      final parsed = TranscriptionViewModel.parseSecondaryDrillButtons(rawJson);
+      expect(parsed, equals(['📈 Revenue Drivers', '⚠️ Margin Risks', '🎯 Next Steps']));
+
+      final fallback = TranscriptionViewModel.parseSecondaryDrillButtons(
+        'not json',
+        notionContext: 'Short Answer: X\nLong Answer: Detailed breakdown',
+      );
+      expect(fallback.first, equals('📄 Full Breakdown'));
+      expect(fallback.length, equals(3));
     });
   });
 }
