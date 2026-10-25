@@ -22,7 +22,7 @@ class LocalDatabase {
 
     return await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -74,6 +74,30 @@ class LocalDatabase {
        // Add context history tracking for dynamic repeating topics (v8)
        await db.execute("ALTER TABLE segments ADD COLUMN context_topic TEXT");
     }
+    if (oldVersion < 9) {
+      // Add starter & notion vector embeddings table (v9)
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS starter_embeddings (
+          id TEXT PRIMARY KEY,
+          starter_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          prompt TEXT,
+          embedding BLOB,
+          updated_at INTEGER NOT NULL
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS notion_embeddings (
+          id TEXT PRIMARY KEY,
+          page_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          summary TEXT,
+          url TEXT,
+          embedding BLOB,
+          updated_at INTEGER NOT NULL
+        )
+      ''');
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -110,6 +134,29 @@ class LocalDatabase {
         is_multi_output INTEGER NOT NULL,
         additional_prompts TEXT,
         is_generated INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS starter_embeddings (
+        id TEXT PRIMARY KEY,
+        starter_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        prompt TEXT,
+        embedding BLOB,
+        updated_at INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS notion_embeddings (
+        id TEXT PRIMARY KEY,
+        page_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        summary TEXT,
+        url TEXT,
+        embedding BLOB,
+        updated_at INTEGER NOT NULL
       )
     ''');
   }
@@ -243,5 +290,63 @@ class LocalDatabase {
   Future<void> deleteBubble(String id) async {
     final db = await database;
     await db.delete('bubbles', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- SEMANTIC EMBEDDINGS (Hugging Face / On-Device) ---
+
+  Future<void> saveStarterEmbedding({
+    required String id,
+    required String starterId,
+    required String name,
+    String? prompt,
+    required List<int> embeddingBytes,
+  }) async {
+    final db = await database;
+    await db.insert(
+      'starter_embeddings',
+      {
+        'id': id,
+        'starter_id': starterId,
+        'name': name,
+        'prompt': prompt,
+        'embedding': embeddingBytes,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getAllStarterEmbeddings() async {
+    final db = await database;
+    return await db.query('starter_embeddings');
+  }
+
+  Future<void> saveNotionEmbedding({
+    required String id,
+    required String pageId,
+    required String title,
+    String? summary,
+    String? url,
+    required List<int> embeddingBytes,
+  }) async {
+    final db = await database;
+    await db.insert(
+      'notion_embeddings',
+      {
+        'id': id,
+        'page_id': pageId,
+        'title': title,
+        'summary': summary,
+        'url': url,
+        'embedding': embeddingBytes,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getAllNotionEmbeddings() async {
+    final db = await database;
+    return await db.query('notion_embeddings');
   }
 }

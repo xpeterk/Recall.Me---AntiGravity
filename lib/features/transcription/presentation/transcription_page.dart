@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../transcription/presentation/transcription_view_model.dart';
 import '../../recall/domain/transcription_segment.dart';
@@ -23,6 +23,8 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late TextEditingController _starterController;
   late TextEditingController _manualInputController;
+  late TextEditingController _startersSearchController;
+  String _startersSearchQuery = "";
   bool _showScrollButton = false;
   String? _lastParsedUrl;
   String _starterStatus = "";
@@ -33,6 +35,7 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
     super.initState();
     _starterController = TextEditingController();
     _manualInputController = TextEditingController();
+    _startersSearchController = TextEditingController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final vm = Provider.of<TranscriptionViewModel>(context, listen: false);
       if (vm.conversationStarter != null) {
@@ -53,6 +56,7 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
     _scrollController.dispose();
     _starterController.dispose();
     _manualInputController.dispose();
+    _startersSearchController.dispose();
     super.dispose();
   }
 
@@ -60,7 +64,7 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
     final url = vm.linkParserService.extractFirstUrl(text);
     if (url != null && url != _lastParsedUrl) {
       _lastParsedUrl = url;
-      setState(() => _starterStatus = "⏳ Reading link...");
+      setState(() => _starterStatus = "â³ Reading link...");
       final success = await vm.processExternalLink(url, onStatus: (status) {
          if (mounted) setState(() => _starterStatus = status);
       });
@@ -94,9 +98,9 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Parsing link...")));
                 final success = await vm.processExternalLink(url);
                 if (success) {
-                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✓ Context added successfully")));
+                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Context added successfully")));
                 } else {
-                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Failed to parse link")));
+                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to parse link")));
                 }
               }
             },
@@ -160,6 +164,36 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                padding: const EdgeInsets.only(top: 8),
                child: Text(_starterStatus, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary)),
              ),
+          if (viewModel.detectedStarter != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.amber.shade700, width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.auto_awesome, size: 14, color: Colors.amber),
+                    const SizedBox(width: 6),
+                    Text(
+                      "Detected Topic: ${viewModel.detectedStarter!.name} (${(viewModel.detectedStarterSimilarity * 100).toInt()}% match)",
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () {
+                        viewModel.clearDetectedStarter();
+                      },
+                      child: const Icon(Icons.close, size: 14, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           if (viewModel.starterSuggestions.isNotEmpty || viewModel.dynamicStarters.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 12.0),
@@ -168,11 +202,21 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                 runSpacing: 4.0,
                 children: [
                   ...viewModel.dynamicStarters.map((starter) {
+                    final isDetected = viewModel.detectedStarter?.id == starter.id;
                     return ActionChip(
-                      backgroundColor: Theme.of(context).colorScheme.tertiaryContainer,
+                      backgroundColor: isDetected 
+                          ? Colors.amber.shade300 
+                          : Theme.of(context).colorScheme.tertiaryContainer,
+                      avatar: isDetected ? const Icon(Icons.auto_awesome, size: 16, color: Colors.orange) : null,
                       label: Text(
-                        "⚡ ${starter.name}", 
-                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onTertiaryContainer, fontWeight: FontWeight.bold)
+                        isDetected 
+                            ? "✨ ${starter.name} (${(viewModel.detectedStarterSimilarity * 100).toInt()}%)"
+                            : "⚡ ${starter.name}", 
+                        style: TextStyle(
+                          fontSize: 12, 
+                          color: isDetected ? Colors.black87 : Theme.of(context).colorScheme.onTertiaryContainer, 
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       onPressed: () {
                         viewModel.processDynamicStarter(starter);
@@ -184,7 +228,7 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                       onLongPress: () => viewModel.pinStarter(starter),
                       child: ActionChip(
                         backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                        label: Text("⭐ $starter", style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSecondaryContainer, fontWeight: FontWeight.bold)),
+                        label: Text(starter, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSecondaryContainer, fontWeight: FontWeight.bold)),
                         onPressed: () { _starterController.text = starter; viewModel.setConversationStarter(starter); },
                       ),
                     );
@@ -194,7 +238,7 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                       onLongPress: () => viewModel.pinStarter(starter),
                       child: ActionChip(
                         backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        label: Text("🕒 $starter", style: const TextStyle(fontSize: 12)),
+                        label: Text(starter, style: const TextStyle(fontSize: 12)),
                         onPressed: () { _starterController.text = starter; viewModel.setConversationStarter(starter); },
                       ),
                     );
@@ -244,7 +288,7 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                 ? Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                       const Text("🧊 ", style: TextStyle(fontSize: 20)),
+                       const SizedBox.shrink(),
                        Text("${viewModel.selectionCount} Selected"),
                     ],
                   )
@@ -271,8 +315,8 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                               duration: const Duration(seconds: 2),
                               content: Text(
                                 viewModel.isGeminiEngine 
-                                    ? "✨ Switched to Gemini 3.5 Transcribe (Live Cloud)" 
-                                    : "📱 Switched to On-Device Native Speech (Offline)",
+                                    ? "Switched to Gemini 3.5 Transcribe (Live Cloud)" 
+                                    : "Switched to On-Device Native Speech (Offline)",
                               ),
                             ),
                           );
@@ -295,15 +339,16 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                viewModel.isGeminiEngine ? "✨" : "📱",
-                                style: const TextStyle(fontSize: 10),
+                              Icon(
+                                viewModel.isGeminiEngine ? Icons.cloud_queue : Icons.phone_android,
+                                size: 12,
+                                color: viewModel.isGeminiEngine ? const Color(0xFF818CF8) : Colors.white70,
                               ),
                               const SizedBox(width: 4),
                               Text(
                                 viewModel.isGeminiEngine ? "Gemini 3.5" : "Native",
                                 style: TextStyle(
-                                  fontSize: 9,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.bold,
                                   color: viewModel.isGeminiEngine ? const Color(0xFF818CF8) : Colors.white70,
                                 ),
@@ -722,66 +767,133 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: viewModel.notionConvoStarters.isEmpty
-                          ? const Center(
-                              child: Text(
-                                "No conversation starters synced.\nMark columns with 'Convo Starter' in Notion and sync context in Settings.",
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.grey, fontSize: 13),
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: viewModel.notionConvoStarters.length,
-                              padding: EdgeInsets.zero,
-                              itemBuilder: (context, index) {
-                                final starter = viewModel.notionConvoStarters[index];
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF161619),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: Colors.white10),
+                    const SizedBox(height: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF161619),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: TextField(
+                        controller: _startersSearchController,
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        onChanged: (val) {
+                          setState(() {
+                            _startersSearchQuery = val.trim();
+                          });
+                        },
+                        decoration: InputDecoration(
+                          hintText: "Search starters...",
+                          hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
+                          prefixIcon: const Icon(Icons.search, color: Colors.white54, size: 20),
+                          suffixIcon: _startersSearchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, color: Colors.white54, size: 18),
+                                  onPressed: () {
+                                    _startersSearchController.clear();
+                                    setState(() {
+                                      _startersSearchQuery = "";
+                                    });
+                                  },
+                                )
+                              : null,
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Builder(
+                      builder: (context) {
+                        final allStarters = viewModel.notionConvoStarters;
+                        final filteredStarters = _startersSearchQuery.isEmpty
+                            ? allStarters
+                            : allStarters.where((s) {
+                                final title = (s.contextTopic ?? "").toLowerCase();
+                                final text = s.text.toLowerCase();
+                                final query = _startersSearchQuery.toLowerCase();
+                                return title.contains(query) || text.contains(query);
+                              }).toList();
+
+                        return Expanded(
+                          child: allStarters.isEmpty
+                              ? const Center(
+                                  child: Text(
+                                    "No conversation starters synced.\nMark columns with 'Convo Starter' in Notion and sync context in Settings.",
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: Colors.grey, fontSize: 13),
                                   ),
-                                  child: ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                    leading: Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.05),
-                                        shape: BoxShape.circle,
+                                )
+                              : filteredStarters.isEmpty
+                                  ? Center(
+                                      child: Text(
+                                        "No starters matching '$_startersSearchQuery'",
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(color: Colors.grey, fontSize: 13),
                                       ),
-                                      child: Image.asset(
-                                        'assets/images/notion_logo.png',
-                                        width: 16,
-                                        height: 16,
-                                        errorBuilder: (_, __, ___) => const Icon(Icons.description, size: 16, color: Colors.white),
-                                      ),
+                                    )
+                                  : ListView.builder(
+                                      itemCount: filteredStarters.length,
+                                      padding: EdgeInsets.zero,
+                                      itemBuilder: (context, index) {
+                                        final starter = filteredStarters[index];
+                                        final formattedDate = "${starter.timestamp.month}/${starter.timestamp.day} ${starter.timestamp.hour}:${starter.timestamp.minute.toString().padLeft(2, '0')}";
+                                        return Container(
+                                          margin: const EdgeInsets.only(bottom: 12),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF161619),
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(color: Colors.white10),
+                                          ),
+                                          child: ListTile(
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                            leading: Container(
+                                              padding: const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white.withOpacity(0.05),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: Image.asset(
+                                                'assets/images/notion_logo.png',
+                                                width: 16,
+                                                height: 16,
+                                                errorBuilder: (_, __, ___) => const Icon(Icons.description, size: 16, color: Colors.white),
+                                              ),
+                                            ),
+                                            title: Text(
+                                              starter.contextTopic ?? "Untitled Starter",
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                            subtitle: Text(
+                                              "Updated $formattedDate",
+                                              style: const TextStyle(
+                                                color: Colors.white38,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                            trailing: const Icon(
+                                              Icons.chevron_right,
+                                              color: Colors.grey,
+                                              size: 16,
+                                            ),
+                                            onTap: () {
+                                              viewModel.triggerConvoStarter(starter);
+                                              setState(() {
+                                                _showStartersPanel = false;
+                                                _startersSearchController.clear();
+                                                _startersSearchQuery = "";
+                                              });
+                                            },
+                                          ),
+                                        );
+                                      },
                                     ),
-                                    title: Text(
-                                      starter.contextTopic ?? "Untitled Starter",
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                                    trailing: const Icon(
-                                      Icons.chevron_right,
-                                      color: Colors.grey,
-                                      size: 16,
-                                    ),
-                                    onTap: () {
-                                      viewModel.triggerConvoStarter(starter);
-                                      setState(() {
-                                        _showStartersPanel = false;
-                                      });
-                                    },
-                                  ),
-                                );
-                              },
-                            ),
+                        );
+                      },
                     ),
                     Column(
                       mainAxisSize: MainAxisSize.min,

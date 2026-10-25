@@ -62,14 +62,31 @@ class NativeKnowledgeRepository implements KnowledgeRepository {
       final headers = candidates.map((s) {
           String title = "Untitled";
           final text = s['text'] as String? ?? "";
-          final firstLine = text.split('\n').first;
+          final lines = text.split('\n');
+          final firstLine = lines.first;
           
           if (firstLine.startsWith("Notion Page: ")) {
-             title = firstLine.replaceFirst("Notion Page: ", "");
+             title = firstLine.replaceFirst("Notion Page: ", "").trim();
           }
+
+          final questionsAndKeywords = <String>[];
+          for (final line in lines) {
+             final tl = line.trim();
+             final lower = tl.toLowerCase();
+             if (lower.startsWith("question:") || 
+                 lower.startsWith("alternative question") ||
+                 lower.startsWith("keywords:")) {
+                questionsAndKeywords.add(tl);
+             }
+          }
+
+          final summaryContext = questionsAndKeywords.isNotEmpty 
+              ? "$title | ${questionsAndKeywords.join(' | ')}" 
+              : title;
+
           return {
             'id': s['id'] as String,
-            'text': title,
+            'text': summaryContext,
             'url': (s['source_url'] as String?) ?? ""
           };
       }).toList();

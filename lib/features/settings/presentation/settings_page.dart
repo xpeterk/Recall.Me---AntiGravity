@@ -80,6 +80,19 @@ class SettingsPage extends StatelessWidget {
               );
             },
           ),
+          Consumer<TranscriptionViewModel>(
+            builder: (context, vm, child) {
+              return SwitchListTile(
+                secondary: const Icon(Icons.auto_awesome),
+                title: const Text("Auto-Activate Detected Starters"),
+                subtitle: const Text("Automatically switch conversation starter when relevant speech is semantically detected"),
+                value: vm.autoActivateDetectedStarter,
+                onChanged: (value) {
+                  vm.toggleAutoActivateDetectedStarter(value);
+                },
+              );
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text("App Version"),
@@ -217,7 +230,7 @@ class SettingsPage extends StatelessWidget {
                       activeColor: Colors.indigoAccent,
                       title: const Row(
                         children: [
-                          Text("📱 On-Device Speech Recognition"),
+                          Text("ðŸ“± On-Device Speech Recognition"),
                           SizedBox(width: 8),
                           Text("(Offline)", style: TextStyle(fontSize: 11, color: Colors.greenAccent)),
                         ],
@@ -254,7 +267,7 @@ class SettingsPage extends StatelessWidget {
                       activeColor: const Color(0xFF818CF8),
                       title: const Row(
                         children: [
-                          Text("✨ Gemini 3.5 Transcribe Live"),
+                          Text("âœ¨ Gemini 3.5 Transcribe Live"),
                           SizedBox(width: 8),
                           Text("(Cloud AI)", style: TextStyle(fontSize: 11, color: Color(0xFF818CF8))),
                         ],
@@ -395,7 +408,7 @@ class _VersionHistoryItem extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("• ", style: TextStyle(color: Colors.indigoAccent)),
+                    const Text("â€¢ ", style: TextStyle(color: Colors.indigoAccent)),
                     Expanded(
                       child: Text(
                         c,

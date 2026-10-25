@@ -63,4 +63,43 @@ Summary: This is the summary at the bottom.
       expect(result.contains('This is the summary at the bottom.'), isTrue);
     });
   });
+
+  group('TranscriptionViewModel Convo Starter Relevance & Matching', () {
+    test('buildConvoStarterSelectorPrompt includes conversation and candidate topics', () {
+      const selected = "We were wondering about faith and patience in trials.";
+      const candidates = "[ID: p1] Topic: Faith & Trials | Context: Scripture references...";
+      final prompt = TranscriptionViewModel.buildConvoStarterSelectorPrompt(selected, candidates);
+
+      expect(prompt.contains(selected), isTrue);
+      expect(prompt.contains(candidates), isTrue);
+      expect(prompt.contains("precision relevance classifier"), isTrue);
+    });
+
+    test('parseConvoStarterMatchId handles clean IDs, quotes, code fences, and ID prefixes', () {
+      expect(TranscriptionViewModel.parseConvoStarterMatchId("page_abc_123"), equals("page_abc_123"));
+      expect(TranscriptionViewModel.parseConvoStarterMatchId('"page_abc_123"'), equals("page_abc_123"));
+      expect(TranscriptionViewModel.parseConvoStarterMatchId("'page_abc_123'"), equals("page_abc_123"));
+      expect(TranscriptionViewModel.parseConvoStarterMatchId("ID: page_abc_123"), equals("page_abc_123"));
+      expect(TranscriptionViewModel.parseConvoStarterMatchId("[ID: page_abc_123]"), equals("page_abc_123"));
+      expect(TranscriptionViewModel.parseConvoStarterMatchId("`page_abc_123`"), equals("page_abc_123"));
+      expect(TranscriptionViewModel.parseConvoStarterMatchId("NONE"), equals("NONE"));
+    });
+
+    test('buildConvoStarterSynthesisPrompt includes selected text, topic, and Notion content', () {
+      const selected = "What was the main discussion topic?";
+      const topic = "Faith & Patience";
+      const notionContent = "- Point 1: Endurance\n- Point 2: Hope";
+
+      final prompt = TranscriptionViewModel.buildConvoStarterSynthesisPrompt(
+        selectedText: selected,
+        topic: topic,
+        notionContent: notionContent,
+      );
+
+      expect(prompt.contains(selected), isTrue);
+      expect(prompt.contains(topic), isTrue);
+      expect(prompt.contains(notionContent), isTrue);
+      expect(prompt.contains("concise, helpful insight or synthesis"), isTrue);
+    });
+  });
 }

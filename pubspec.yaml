@@ -58,6 +58,8 @@ dependencies:
   geocoding: ^4.0.0
   youtube_explode_dart: ^2.2.2
   html: ^0.15.4
+  onnxruntime: ^1.4.1
+  bert_tokenizer: ^1.2.0
 
 dev_dependencies:
   flutter_test:

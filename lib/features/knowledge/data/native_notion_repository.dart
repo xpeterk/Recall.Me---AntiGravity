@@ -371,10 +371,13 @@ class NativeNotionRepository implements NotionRepository {
         final buffer = StringBuffer();
 
         // Detect Convo Starter (column checkbox/select/status)
+        // If the property has been removed from the database, all entries are used.
+        bool hasConvoStarterProp = false;
         bool isConvoStarter = false;
         for (var k in props.keys) {
            final cleanKey = k.toLowerCase().replaceAll(' ', '').replaceAll('_', '').replaceAll('-', '');
            if (cleanKey == 'convostarter') {
+              hasConvoStarterProp = true;
               final prop = props[k];
               final type = prop['type'];
               if (type == 'checkbox') {
@@ -388,7 +391,7 @@ class NativeNotionRepository implements NotionRepository {
               }
            }
         }
-        if (isConvoStarter) {
+        if (!hasConvoStarterProp || isConvoStarter) {
            buffer.writeln("Convo Starter: true");
         }
         
@@ -401,60 +404,84 @@ class NativeNotionRepository implements NotionRepository {
               return list.map((t) => t['plain_text']).join();
            } else if (type == 'multi_select') {
               final list = prop['multi_select'] as List;
-              return list.map((Item) => Item['name']).join(', ');
+              return list.map((item) => item['name']).join(', ');
            } else if (type == 'select') {
               return prop['select']?['name'] ?? "";
            }
            return "";
         }
 
-        // Define Priority Keys (The exact column names the user requested)
-        // We iterate specifically to maintain order in the Output Text
-        final targetKeys = [
-          'Question', 
-          'Short Answer', 
-          'Long Answer', 
-          'Keywords', 
-          'Alternative Question',
-          'Alternative Questions'
-        ];
-        
-        // Also keep legacy fallback if they haven't migrated
-        final legacyKeys = ['Answer', 'Question', 'Keywords'];
+        final processedKeys = <String>{};
 
-        // 1. Try Strict Schema First
-        bool foundSchema = false;
-        
-        for (var key in targetKeys) {
-             // Case-insensitive match against Notion Props
-             String? matchKey;
-             for (var k in props.keys) {
-               if (k.toLowerCase() == key.toLowerCase()) {
-                 matchKey = k;
-                 break;
-               }
-             }
-             
-             if (matchKey != null) {
-               final text = extractText(props[matchKey]);
-               if (text.isNotEmpty) {
-                 buffer.writeln("$key: $text");
-                 foundSchema = true;
-               }
-             }
+        // 1. Primary Question
+        for (var k in props.keys) {
+           if (k.trim().toLowerCase() == 'question') {
+              final text = extractText(props[k]);
+              if (text.isNotEmpty) {
+                 buffer.writeln("Question: $text");
+                 processedKeys.add(k);
+              }
+           }
         }
-        
-        // 2. Fallback to dump everything IF we didn't find our specific schema
-        // (Prevents breaking non-conforming pages)
-        if (!foundSchema) {
-           for (var key in props.keys) {
-               final lowerKey = key.toLowerCase();
-               if (lowerKey == 'answer' || lowerKey == 'keywords' || lowerKey == 'alternative question' || lowerKey == 'question') {
-                  final text = extractText(props[key]);
-                  if (text.isNotEmpty) {
-                     buffer.writeln("$key: $text");
-                  }
-               }
+
+        // 2. Alternative Questions (Alternative Question, Alternative Question 1, Alternative Question 2, etc.)
+        final altKeys = props.keys.where((k) {
+           final clean = k.trim().toLowerCase().replaceAll('_', ' ').replaceAll('-', ' ');
+           return clean.startsWith('alternative question');
+        }).toList()..sort();
+
+        for (var k in altKeys) {
+           final text = extractText(props[k]);
+           if (text.isNotEmpty) {
+              buffer.writeln("$k: $text");
+              processedKeys.add(k);
+           }
+        }
+
+        // 3. Short Answer / Answer
+        for (var k in props.keys) {
+           final lower = k.trim().toLowerCase();
+           if (lower == 'short answer' || lower == 'answer') {
+              final text = extractText(props[k]);
+              if (text.isNotEmpty) {
+                 buffer.writeln("Short Answer: $text");
+                 processedKeys.add(k);
+              }
+           }
+        }
+
+        // 4. Long Answer
+        for (var k in props.keys) {
+           if (k.trim().toLowerCase() == 'long answer') {
+              final text = extractText(props[k]);
+              if (text.isNotEmpty) {
+                 buffer.writeln("Long Answer: $text");
+                 processedKeys.add(k);
+              }
+           }
+        }
+
+        // 5. Keywords
+        for (var k in props.keys) {
+           if (k.trim().toLowerCase() == 'keywords') {
+              final text = extractText(props[k]);
+              if (text.isNotEmpty) {
+                 buffer.writeln("Keywords: $text");
+                 processedKeys.add(k);
+              }
+           }
+        }
+
+        // 6. Any other remaining properties (excluding title & convo starter)
+        for (var k in props.keys) {
+           if (!processedKeys.contains(k)) {
+              final clean = k.toLowerCase().replaceAll(' ', '').replaceAll('_', '').replaceAll('-', '');
+              if (clean != 'convostarter' && props[k]['type'] != 'title') {
+                 final text = extractText(props[k]);
+                 if (text.isNotEmpty) {
+                    buffer.writeln("$k: $text");
+                 }
+              }
            }
         }
         

@@ -19,15 +19,23 @@ class GeminiAiService implements AiService {
   String get apiKey => _apiKey;
 
   String _getModelName(String? modelAlias) {
-    if (modelAlias == null || modelAlias.isEmpty) return 'gemini-3.5-flash';
+    if (modelAlias == null || modelAlias.isEmpty) return 'gemini-2.5-flash';
     
+    final lower = modelAlias.toLowerCase();
+    if (lower == 'gemini-1.5-flash' || lower == 'gemini-3.5-flash') {
+      return 'gemini-2.5-flash';
+    }
+    if (lower == 'gemini-1.5-pro' || lower == 'gemini-3.1-pro-preview') {
+      return 'gemini-2.5-pro';
+    }
+
     // Allow passing full model names directly if they contain 'gemini'
-    if (modelAlias.toLowerCase().contains('gemini')) return modelAlias;
+    if (lower.contains('gemini')) return modelAlias;
 
     switch (modelAlias) {
-      case 'pro': return 'gemini-3.1-pro-preview';
+      case 'pro': return 'gemini-2.5-pro';
       case 'flash': 
-      default: return 'gemini-3.5-flash';
+      default: return 'gemini-2.5-flash';
     }
   }
 
@@ -41,7 +49,7 @@ class GeminiAiService implements AiService {
       final modelName = _getModelName(model);
       
       if (useSearch) {
-         final result = await _generateRaw(prompt, modelName);
+         final result = await _generateRaw(prompt, modelName, useSearch: true);
          return Right(result);
       }
       
@@ -59,6 +67,15 @@ class GeminiAiService implements AiService {
         return const Right("No response generated.");
       }
     } catch (e) {
+      if (e.toString().contains("Unhandled format for Content") ||
+          e.toString().contains("GenerativeAISdkException")) {
+        try {
+          final fallbackResult = await _generateRaw(prompt, _getModelName(model), useSearch: useSearch);
+          return Right(fallbackResult);
+        } catch (rawErr) {
+          return Left(ServerFailure("API Error: $rawErr"));
+        }
+      }
       if (e.toString().contains("404")) {
          return Left(ServerFailure("Model $model not found (404). Please check the model name in Settings."));
       }
@@ -73,11 +90,11 @@ class GeminiAiService implements AiService {
       return;
     }
 
+    final modelName = _getModelName(model);
+
     try {
-      final modelName = _getModelName(model);
-      
       if (useSearch) {
-         final result = await _generateRaw(prompt, modelName);
+         final result = await _generateRaw(prompt, modelName, useSearch: true);
          yield Right(result);
          return;
       }
@@ -91,12 +108,23 @@ class GeminiAiService implements AiService {
       final stream = genModel.generateContentStream(content);
       
       await for (final response in stream) {
-        if (response.text != null) {
+        if (response.text != null && response.text!.isNotEmpty) {
           yield Right(response.text!);
         }
       }
     } catch (e) {
-       yield Left(ServerFailure("Error: $e"));
+      if (e.toString().contains("Unhandled format for Content") ||
+          e.toString().contains("GenerativeAISdkException")) {
+        try {
+          final fallbackResult = await _generateRaw(prompt, modelName, useSearch: useSearch);
+          yield Right(fallbackResult);
+          return;
+        } catch (rawErr) {
+          yield Left(ServerFailure("API Error: $rawErr"));
+          return;
+        }
+      }
+      yield Left(ServerFailure("Error: $e"));
     }
   }
 
@@ -129,22 +157,25 @@ class GeminiAiService implements AiService {
     }
   }
 
-  Future<String> _generateRaw(String prompt, String modelName) async {
+  Future<String> _generateRaw(String prompt, String modelName, {bool useSearch = false}) async {
     final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$_apiKey');
     
-    final body = jsonEncode({
+    final Map<String, dynamic> bodyMap = {
       "contents": [{
         "parts": [{"text": prompt}]
-      }],
-      "tools": [{
-        "google_search": {}
       }]
-    });
+    };
+
+    if (useSearch) {
+      bodyMap["tools"] = [{
+        "google_search": {}
+      }];
+    }
 
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
-      body: body,
+      body: jsonEncode(bodyMap),
     );
 
     if (response.statusCode == 200) {
@@ -153,8 +184,14 @@ class GeminiAiService implements AiService {
         final candidate = data['candidates'][0];
         if (candidate['content'] != null && candidate['content']['parts'] != null) {
           final parts = candidate['content']['parts'] as List;
-          if (parts.isNotEmpty) {
-             return parts[0]['text'] ?? "No text returned.";
+          final buffer = StringBuffer();
+          for (final part in parts) {
+            if (part is Map && part['text'] != null) {
+              buffer.write(part['text']);
+            }
+          }
+          if (buffer.isNotEmpty) {
+             return buffer.toString();
           }
         }
       }

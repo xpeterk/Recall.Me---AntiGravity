@@ -31,6 +31,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:geocoding/geocoding.dart';
 import '../../../../core/services/link_parser_service.dart';
+import '../../../../core/services/semantic_embedding_service.dart';
 
 enum TranscriptionEngineMode {
   native, // On-Device / OS Native SpeechRecognizer
@@ -101,15 +102,15 @@ class TranscriptionViewModel extends ChangeNotifier {
   final LinkParserService linkParserService = LinkParserService();
 
   Future<bool> processExternalLink(String url, {Function(String)? onStatus}) async {
-    if (onStatus != null) onStatus("⏳ Reading link...");
+    if (onStatus != null) onStatus("â³ Reading link...");
     final data = await linkParserService.fetchContextFromUrl(url);
     if (data != null && data.isNotEmpty) {
       _externalContext += "\n\n--- Extracted Link Content ($url) ---\n$data\n------------------------\n";
-      if (onStatus != null) onStatus("✓ Link Processed");
+      if (onStatus != null) onStatus("âœ“ Link Processed");
       notifyListeners();
       return true;
     } else {
-      if (onStatus != null) onStatus("❌ Failed to read link");
+      if (onStatus != null) onStatus("âŒ Failed to read link");
       return false;
     }
   }
@@ -126,6 +127,21 @@ class TranscriptionViewModel extends ChangeNotifier {
 
   List<DynamicStarter> _dynamicStarters = [];
   List<DynamicStarter> get dynamicStarters => _dynamicStarters;
+
+  // Hugging Face Semantic Detection State
+  final SemanticEmbeddingService _semanticService = SemanticEmbeddingService();
+  DynamicStarter? _detectedStarter;
+  DynamicStarter? get detectedStarter => _detectedStarter;
+  double _detectedStarterSimilarity = 0.0;
+  double get detectedStarterSimilarity => _detectedStarterSimilarity;
+  bool _autoActivateDetectedStarter = false;
+  bool get autoActivateDetectedStarter => _autoActivateDetectedStarter;
+
+  void clearDetectedStarter() {
+    _detectedStarter = null;
+    _detectedStarterSimilarity = 0.0;
+    notifyListeners();
+  }
 
   List<String> _activeAiSuggestions = [];
   List<String> get activeAiSuggestions => _activeAiSuggestions;
@@ -204,7 +220,7 @@ class TranscriptionViewModel extends ChangeNotifier {
         timestamp: DateTime.now(),
         type: SegmentType.aiResponse, // Treat as AI Response/System message
         bubbleName: starter.name,
-        bubbleIcon: "📰", // News/Daily brief icon
+        bubbleIcon: "ðŸ“°", // News/Daily brief icon
         isUser: false,
       );
       
@@ -223,16 +239,27 @@ class TranscriptionViewModel extends ChangeNotifier {
       String shortSummary = "";
       String longContent = "";
       
-      final summaryIndex = contentString.indexOf("::Summary::");
-      final contentIndex = contentString.indexOf("::Content::");
+      int summaryIndex = contentString.indexOf("::Summary::");
+      int summaryPrefixLen = "::Summary::".length;
+      if (summaryIndex == -1) {
+        summaryIndex = contentString.indexOf("Summary:");
+        summaryPrefixLen = "Summary:".length;
+      }
+      
+      int contentIndex = contentString.indexOf("::Content::");
+      int contentPrefixLen = "::Content::".length;
+      if (contentIndex == -1) {
+        contentIndex = contentString.indexOf("Content:");
+        contentPrefixLen = "Content:".length;
+      }
       
       if (summaryIndex != -1 && contentIndex != -1 && summaryIndex < contentIndex) {
-          shortSummary = contentString.substring(summaryIndex + "::Summary::".length, contentIndex).trim();
-          longContent = contentString.substring(contentIndex + "::Content::".length).trim();
+          shortSummary = contentString.substring(summaryIndex + summaryPrefixLen, contentIndex).trim();
+          longContent = contentString.substring(contentIndex + contentPrefixLen).trim();
       } else if (summaryIndex != -1) {
-          shortSummary = contentString.substring(summaryIndex + "::Summary::".length).trim();
+          shortSummary = contentString.substring(summaryIndex + summaryPrefixLen).trim();
       } else if (contentIndex != -1) {
-          longContent = contentString.substring(contentIndex + "::Content::".length).trim();
+          longContent = contentString.substring(contentIndex + contentPrefixLen).trim();
       } else {
           shortSummary = "Daily Brief fetched.";
           longContent = contentString.trim();
@@ -255,6 +282,38 @@ class TranscriptionViewModel extends ChangeNotifier {
      startersResult.fold((l) => null, (starters) {
         _dynamicStarters = starters.cast<DynamicStarter>().where((s) => s.isActive).toList();
      });
+
+     // Precompute / hydrate Hugging Face semantic embeddings for all active starters
+     try {
+       final cachedStarterRows = await _db.getAllStarterEmbeddings();
+       final Map<String, List<double>> cachedVectors = {};
+       for (var row in cachedStarterRows) {
+         final bytes = row['embedding'] as List<int>?;
+         if (bytes != null && bytes.isNotEmpty) {
+           cachedVectors[row['starter_id'] as String] = SemanticEmbeddingService.bytesToVector(Uint8List.fromList(bytes));
+         }
+       }
+
+       final List<DynamicStarter> hydrated = [];
+       for (var starter in _dynamicStarters) {
+         List<double>? vector = cachedVectors[starter.id];
+         if (vector == null || vector.isEmpty) {
+           final textToEmbed = "${starter.name} ${starter.prompt ?? ''}";
+           vector = await _semanticService.getEmbedding(textToEmbed);
+           await _db.saveStarterEmbedding(
+             id: starter.id,
+             starterId: starter.id,
+             name: starter.name,
+             prompt: starter.prompt,
+             embeddingBytes: SemanticEmbeddingService.vectorToBytes(vector),
+           );
+         }
+         hydrated.add(starter.copyWith(embedding: vector));
+       }
+       _dynamicStarters = hydrated;
+     } catch (e) {
+       print("Semantic Starter pre-embedding error: $e");
+     }
 
      _starterSuggestions = [];
      
@@ -388,7 +447,12 @@ class TranscriptionViewModel extends ChangeNotifier {
   }
   
   List<TranscriptionSegment> get notionConvoStarters {
-    return _segments.where((s) => s.type == SegmentType.notion && s.text.contains("Convo Starter: true")).toList();
+    final explicit = _segments.where((s) => s.type == SegmentType.notion && s.text.contains("Convo Starter: true")).toList();
+    final list = explicit.isNotEmpty 
+        ? explicit 
+        : _segments.where((s) => s.type == SegmentType.notion).toList();
+    list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return list;
   }
 
   List<TranscriptionSegment> parseConvoStarterBullets(String markdown, String sourceUrl, String contextTopic) {
@@ -415,7 +479,7 @@ class TranscriptionViewModel extends ChangeNotifier {
            timestamp: DateTime.now().add(Duration(milliseconds: segments.length)),
            type: SegmentType.aiResponse,
            bubbleName: "Convo Starter",
-           bubbleIcon: "💬",
+           bubbleIcon: "ðŸ’¬",
            sourceUrl: sourceUrl,
            contextTopic: contextTopic,
          ));
@@ -466,6 +530,12 @@ class TranscriptionViewModel extends ChangeNotifier {
     _showBottomTextInput = value;
     notifyListeners();
     await _settingsRepository.setPreference('show_bottom_text_input', value);
+  }
+
+  Future<void> toggleAutoActivateDetectedStarter(bool value) async {
+    _autoActivateDetectedStarter = value;
+    notifyListeners();
+    await _settingsRepository.setPreference('auto_activate_detected_starter', value);
   }
 
   void toggleSummaryExpansion(String summaryId) {
@@ -703,6 +773,13 @@ class TranscriptionViewModel extends ChangeNotifier {
       (_) {},
       (val) { if (val is bool) _showBottomTextInput = val; }
     );
+
+    // Load Auto-Activate Detected Starter Preference
+    final autoStarterPref = await _settingsRepository.getPreference('auto_activate_detected_starter');
+    autoStarterPref.fold(
+      (_) {},
+      (val) { if (val is bool) _autoActivateDetectedStarter = val; }
+    );
     
     // Load Diagnostics Preference
     final diagPref = await _settingsRepository.getPreference('show_diagnostics');
@@ -773,6 +850,7 @@ class TranscriptionViewModel extends ChangeNotifier {
     );
     await _db.insertSegment(segment);
     await _loadSegments(); // Refresh UI
+    _detectMatchingStarter(text);
   }
 
   Future<void> _loadSegments() async {
@@ -806,24 +884,24 @@ class TranscriptionViewModel extends ChangeNotifier {
           // MIGRATION: Fix icons for existing users / DB records
           bool needsSave = false;
           for (var b in _bubbles) {
-            if (b.id == 'default_notion' && b.icon == '📓') {
+            if (b.id == 'default_notion' && b.icon == 'ðŸ““') {
               b.icon = 'assets/images/notion_logo.png';
               needsSave = true;
             }
-            if (b.id == 'default_smart_assistant' && b.icon == '🤖') {
+            if (b.id == 'default_smart_assistant' && b.icon == 'ðŸ¤–') {
               b.icon = 'assets/images/gmail_logo.png';
               b.color = const Color(0xFF673AB7); 
               needsSave = true;
             }
-            // Update Fact Check to American Flag 🇺🇸 (User Request)
-            if (b.id == 'default_factcheck' && (b.icon == '✅' || b.icon == '🧐' || b.name == 'Fact Check')) {
-              b.icon = '🇺🇸';
+            // Update Fact Check to American Flag ðŸ‡ºðŸ‡¸ (User Request)
+            if (b.id == 'default_factcheck' && (b.icon == 'âœ…' || b.icon == 'ðŸ§' || b.name == 'Fact Check')) {
+              b.icon = 'ðŸ‡ºðŸ‡¸';
               b.name = 'Quick Fact Check';
               needsSave = true;
             }
             // Update Q&A to Raised Hand and "Quick" name
-            if (b.id == 'default_qa' && (b.icon == '❓' || b.name == 'Q&A')) {
-              b.icon = '🙋';
+            if (b.id == 'default_qa' && (b.icon == 'â“' || b.name == 'Q&A')) {
+              b.icon = 'ðŸ™‹';
               b.name = 'Quick Q&A';
               needsSave = true;
              }
@@ -841,7 +919,7 @@ class TranscriptionViewModel extends ChangeNotifier {
                _bubbles.add(AiBubble(
                  id: 'default_fact_check',
                  name: 'Fact Check',
-                 icon: '📊',
+                 icon: 'ðŸ“Š',
                  color: const Color(0xFF4285F4),
                  systemPrompt: "Fact-check the selected text and verify if it is true, providing accurate details and context.",
                ));
@@ -853,7 +931,7 @@ class TranscriptionViewModel extends ChangeNotifier {
                _bubbles.add(AiBubble(
                  id: 'default_idea',
                  name: 'Idea',
-                 icon: '💡',
+                 icon: 'ðŸ’¡',
                  color: const Color(0xFFFFC107),
                  systemPrompt: "Generate creative, unique ideas or brainstorm suggestions based on the selected text.",
                ));
@@ -865,7 +943,7 @@ class TranscriptionViewModel extends ChangeNotifier {
                _bubbles.add(AiBubble(
                  id: 'default_define',
                  name: 'Define',
-                 icon: '📖',
+                 icon: 'ðŸ“–',
                  color: const Color(0xFF8BC34A),
                  systemPrompt: "Define the selected terms, phrases, or jargon clearly with brief usage examples.",
                ));
@@ -877,7 +955,7 @@ class TranscriptionViewModel extends ChangeNotifier {
                _bubbles.add(AiBubble(
                  id: 'default_translate',
                  name: 'Translate',
-                 icon: '🌐',
+                 icon: 'ðŸŒ',
                  color: const Color(0xFF00BCD4),
                  systemPrompt: "Translate the selected text into English. If the text is already in English, translate it to Spanish.",
                ));
@@ -901,35 +979,35 @@ class TranscriptionViewModel extends ChangeNotifier {
       AiBubble(
         id: 'default_fact_check',
         name: 'Fact Check',
-        icon: '📊',
+        icon: 'ðŸ“Š',
         color: const Color(0xFF4285F4),
         systemPrompt: "Fact-check the selected text and verify if it is true, providing accurate details and context.",
       ),
       AiBubble(
         id: 'default_general_ai',
         name: 'Ask AI',
-        icon: '🤖',
+        icon: 'ðŸ¤–',
         color: const Color(0xFF607D8B),
         systemPrompt: "You are a helpful AI assistant. Answer the user's prompt freely.",
       ),
       AiBubble(
         id: 'default_idea',
         name: 'Idea',
-        icon: '💡',
+        icon: 'ðŸ’¡',
         color: const Color(0xFFFFC107),
         systemPrompt: "Generate creative, unique ideas or brainstorm suggestions based on the selected text.",
       ),
       AiBubble(
         id: 'default_define',
         name: 'Define',
-        icon: '📖',
+        icon: 'ðŸ“–',
         color: const Color(0xFF8BC34A),
         systemPrompt: "Define the selected terms, phrases, or jargon clearly with brief usage examples.",
       ),
       AiBubble(
         id: 'default_translate',
         name: 'Translate',
-        icon: '🌐',
+        icon: 'ðŸŒ',
         color: const Color(0xFF00BCD4),
         systemPrompt: "Translate the selected text into English. If the text is already in English, translate it to Spanish.",
       ),
@@ -947,7 +1025,7 @@ class TranscriptionViewModel extends ChangeNotifier {
       AiBubble(
         id: 'default_notion_search',
         name: 'Notion Search',
-        icon: '🔎',
+        icon: 'ðŸ”Ž',
         color: const Color(0xFFE91E63), 
         systemPrompt: "Review the provided Notion Index. Find the best possible answer for the selected text by displaying a Page title and Link to the top 5 best possible Notion answers. For speed, do not include summaries, ONLY the Title and Link.",
         useNotionContext: true,
@@ -1091,9 +1169,43 @@ class TranscriptionViewModel extends ChangeNotifier {
     print("DEBUG: Commit Complete. Reloading...");
     await _loadSegments(); // Refresh list
     
+    // Real-Time On-Device Semantic Starter Matching (Hugging Face)
+    _detectMatchingStarter(processingText);
+
     // Trigger Auto-Summary Check
     if (_enableAutoSummary && _unsummarizedSegmentIds.length >= 10) {
        _generateAutoSummary();
+    }
+  }
+
+  Future<void> _detectMatchingStarter(String text) async {
+    final clean = text.trim();
+    if (clean.length < 8 || _dynamicStarters.isEmpty) return;
+
+    try {
+      final queryEmb = await _semanticService.getEmbedding(clean);
+      final ranked = _semanticService.rankCandidates<DynamicStarter>(
+        queryVector: queryEmb,
+        candidates: _dynamicStarters,
+        embeddingExtractor: (s) => s.embedding ?? [],
+        threshold: 0.15,
+      );
+
+      if (ranked.isNotEmpty) {
+        final best = ranked.first;
+        _detectedStarter = best.item;
+        _detectedStarterSimilarity = best.score;
+        print("SEMANTIC MATCH: Dynamic Starter '${best.item.name}' matched (${(best.score * 100).toStringAsFixed(1)}%)");
+
+        // Auto-activate if enabled and confidence is solid
+        if (_autoActivateDetectedStarter && best.score >= 0.20 && _conversationStarter != best.item.name) {
+          setConversationStarter(best.item.name);
+        } else {
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      print("Semantic starter detection error: $e");
     }
   }
 
@@ -1128,7 +1240,7 @@ $textBlock
 """;
      
      try {
-        final result = await _activeAiService.generate(prompt, model: "gemini-1.5-flash"); // Use fast model
+        final result = await _activeAiService.generate(prompt, model: "gemini-2.5-flash"); // Use fast model
         
         result.fold(
           (failure) { print("Auto-Summary Failed: ${failure.message}"); },
@@ -1161,7 +1273,7 @@ $textBlock
                timestamp: DateTime.now(),
                type: SegmentType.summary,
                includedSegmentIds: includedIds,
-               bubbleIcon: "📌", 
+               bubbleIcon: "ðŸ“Œ", 
                bubbleName: "Topic Boundry"
              );
              
@@ -1178,10 +1290,16 @@ $textBlock
 
 
 
+  String? _lastSavedAiContent;
+
   // ... (Save AI Memory restored) ...
   Future<void> saveAiMemory(String title, String content) async {
     // If we are just viewing an existing one, don't save a duplicate
     if (isViewingExistingAi) return;
+    final clean = content.trim();
+    if (clean.isEmpty || clean == "Analyzing..." || clean == "Analysis complete.") return;
+    if (_lastSavedAiContent == clean) return;
+    _lastSavedAiContent = clean;
 
     final newSegment = TranscriptionSegment(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -1196,7 +1314,6 @@ $textBlock
     );
 
     // Ensure we don't save duplicates if the user clicked "Save" explicitly
-    // This is a simple check; could be more robust
     bool exists = _segments.any((s) => s.text == content && s.type == SegmentType.aiResponse);
     if (!exists) {
         await _db.insertSegment(newSegment);
@@ -1209,6 +1326,7 @@ $textBlock
   void viewAiSegment(TranscriptionSegment segment) {
     _viewingAiSegmentId = segment.id;
     _aiResponse = segment.text;
+    _lastSavedAiContent = segment.text.trim();
     
     // Check if JSON
     try {
@@ -1234,6 +1352,7 @@ $textBlock
     _aiResponseList = [];
     _viewingAiSegmentId = null;
     _currentSourceBubble = null;
+    _lastSavedAiContent = null;
     notifyListeners();
   }
 
@@ -1558,7 +1677,7 @@ If no entry is relevant, return "NONE".
                   String bestId = "NONE";
                   try {
                       print("DEBUG: Sending Selection Prompt via Flash model");
-                      final selectionStream = await _geminiService.generateStream(selectorPrompt, model: "gemini-1.5-flash");
+                      final selectionStream = await _geminiService.generateStream(selectorPrompt, model: "gemini-2.5-flash");
                       String fullResponse = "";
                       await for (final chunk in selectionStream) {
                          chunk.fold((l) => null, (r) => fullResponse += r);
@@ -1573,6 +1692,37 @@ If no entry is relevant, return "NONE".
                       
                   } catch (e) {
                       print("DEBUG: Selection Error: $e");
+                  }
+
+                  // 2.5 Heuristic & Semantic Fallback Match
+                  // Ensures exact questions/alternative questions/keywords (e.g. Bull Case Analysis) match immediately
+                  if (bestId == "NONE" || bestId.isEmpty) {
+                     final queryTokens = textToProcess
+                         .toLowerCase()
+                         .replaceAll(RegExp(r'[^\w\s]'), ' ')
+                         .split(RegExp(r'\s+'))
+                         .where((t) => t.length >= 3)
+                         .toSet();
+
+                     int maxOverlap = 0;
+                     String? bestOverlapId;
+
+                     for (final h in headers) {
+                        final hText = (h['text'] ?? '').toLowerCase();
+                        int overlap = 0;
+                        for (final tok in queryTokens) {
+                           if (hText.contains(tok)) overlap += 2;
+                        }
+                        if (overlap > maxOverlap) {
+                           maxOverlap = overlap;
+                           bestOverlapId = h['id'];
+                        }
+                     }
+
+                     if (bestOverlapId != null && maxOverlap >= 2) {
+                        bestId = bestOverlapId;
+                        print("DEBUG: Keyword & Semantic Overlap Match selected ID: $bestId (score: $maxOverlap)");
+                     }
                   }
                   
                   // 3. Fetch Content
@@ -1641,7 +1791,10 @@ If no entry is relevant, return "NONE".
                 );
                await for (final chunk in stream) {
                   chunk.fold(
-                    (failure) => _aiResponseList[i] = "Error: ${failure.message}",
+                    (failure) {
+                      _aiResponseList[i] = "Error: ${failure.message}";
+                      if (i == 0) _aiResponse = _aiResponseList[i];
+                    },
                     (text) {
                       _aiResponseList[i] += text;
                        if (i == 0) _aiResponse = _aiResponseList[i];
@@ -1649,52 +1802,29 @@ If no entry is relevant, return "NONE".
                   );
                   notifyListeners();
                }
+               if (_aiResponseList[i].isEmpty) {
+                  _aiResponseList[i] = "No response generated. Please check your model settings.";
+                  if (i == 0) _aiResponse = _aiResponseList[i];
+                  notifyListeners();
+               }
             } catch (e) {
                _aiResponseList[i] = "Error: $e";
+               if (i == 0) _aiResponse = _aiResponseList[i];
+               notifyListeners();
             }
         }
-        
-        // Append Notion Link if applicable (and if we have one)
-        // We need to fetch the URL again or store it.
-        // Let's assume we re-fetch the segment since we have bestId (if we knew it).
-        // Actually, let's just do a quick re-fetch of the Best ID if we are using Notion Context.
-        // This is inefficient but safe without refactoring the whole closure structure above.
-        // OR better: Just do the link logic right after the stream?
-        // But we don't know the 'bestId' here, it was local to the closure.
-        // Refactoring: Lift 'bestId' to outer scope of the loop?
-        // Yes, let's rely on the AI Answer to already include it? No, user wants us to append.
-        
-        // Let's use a dirty trick: The `injectedContext` contains the text. 
-        // We can't restart the stream.
-        
-        // CORRECT APPROACH: Move the Context Fetching logic OUT of the strings-only construction 
-        // to a comprehensive `ContextResult` object before generating the prompt.
-        // But for minimal disturbance:
-        // Let's accept that we need to find the ID again or just store it in a class member temp?
-        // No, race conditions.
-        
-        // Let's modifying the closure above to write to a local variable `String? foundUrl`.
     }
-    
-    // ... WAIT. The `injectedContext` logic above is INSIDE the loop (line 834).
-    // And `bestId` is local.
-    // AND I cannot easily edit the code "around" the loop efficiently with replace block 
-    // without replacing the whole function.
-    
-    // I will replace the WHOLE LOOP body to introduce `notionUrl` variable.
-    // See next chunk.
     
     // Finalize
     _isAiProcessing = false;
     // Pack into JSON if multiple
     if (_aiResponseList.length > 1) {
        _aiResponse = jsonEncode({"responses": _aiResponseList});
-    } else {
+    } else if (_aiResponseList.isNotEmpty && _aiResponseList.first.isNotEmpty) {
        _aiResponse = _aiResponseList.first;
+    } else if (_aiResponse == "Analyzing..." || _aiResponse.isEmpty) {
+       _aiResponse = "Analysis complete.";
     }
-    notifyListeners();
-    
-    _isAiProcessing = false;
     notifyListeners();
   }
 
@@ -1718,7 +1848,7 @@ If no entry is relevant, return "NONE".
     final customBubble = AiBubble(
       id: 'custom_voice_prompt',
       name: 'Custom Voice Prompt',
-      icon: '🎤',
+      icon: 'ðŸŽ¤',
       color: const Color(0xFFF44336), // Colors.red
       systemPrompt: customPromptText,
       useNotionContext: true,           // Give it full context capabilities
@@ -2257,7 +2387,7 @@ If no entry is relevant, return "NONE".
     final prompt = """
 Analyze the following text and suggest $_suggestedBubbleCount short, actionable AI tasks that the user might want to perform on it.
 Return ONLY a JSON array of objects with keys: "name", "icon" (emoji), "prompt" (system prompt for the task).
-Example: [{"name": "Reply", "icon": "✉️", "prompt": "Draft a polite reply to this message."}]
+Example: [{"name": "Reply", "icon": "âœ‰ï¸", "prompt": "Draft a polite reply to this message."}]
 
 ${contextString.isNotEmpty ? "---\nAdditional Context to heavily influence suggestions:\n$contextString\n---\n" : ""}
 Text:
@@ -2298,6 +2428,178 @@ $text
     }
   }
 
+  Timer? _convoStarterCheckTimer;
+  String? _lastCheckedConvoSelectionSignature;
+
+  void _cancelConvoStarterRelevanceCheck() {
+    _convoStarterCheckTimer?.cancel();
+    _convoStarterCheckTimer = null;
+  }
+
+  void _queueConvoStarterRelevanceCheck(String textToProcess) {
+    _cancelConvoStarterRelevanceCheck();
+    _convoStarterCheckTimer = Timer(const Duration(milliseconds: 600), () {
+      checkAndInsertConvoStarterResult(textToProcess);
+    });
+  }
+
+  static String buildConvoStarterSelectorPrompt(String selectedText, String candidateList) {
+    return """
+You are a precision relevance classifier for a meeting assistant.
+User's Selected Conversation:
+\"\"\"
+$selectedText
+\"\"\"
+
+Available Notion Conversation Starters:
+$candidateList
+
+Task:
+Determine if the Selected Conversation is meaningfully related to or discussing any of the Available Notion Conversation Starters.
+If it is clearly related, return ONLY the ID of the single best matching Conversation Starter.
+If none are meaningfully related, return "NONE".
+Do not include any explanation or extra text. Return ONLY the ID or "NONE".
+""";
+  }
+
+  static String parseConvoStarterMatchId(String rawAiResponse) {
+    String cleaned = rawAiResponse.trim().replaceAll('"', '').replaceAll("'", "");
+    if (cleaned.contains("ID:")) {
+      cleaned = cleaned.split("ID:").last.trim();
+    }
+    cleaned = cleaned.replaceAll('`', '').replaceAll('[', '').replaceAll(']', '').trim();
+    return cleaned;
+  }
+
+  static String buildConvoStarterSynthesisPrompt({
+    required String selectedText,
+    required String topic,
+    required String notionContent,
+  }) {
+    return """
+You are an intelligent meeting and conversation assistant.
+The user has selected the following excerpt from their conversation:
+\"\"\"
+$selectedText
+\"\"\"
+
+It relates to this Notion Conversation Starter:
+Topic: "$topic"
+Notion Starter Content:
+\"\"\"
+$notionContent
+\"\"\"
+
+Task:
+Provide a concise, helpful insight or synthesis that connects the selected conversation to the Notion starter notes. Address any question asked in the conversation or highlight key takeaways and guidance from the Notion notes.
+Keep your response direct, insightful, and concise in 2 to 3 sentences.
+""";
+  }
+
+  Future<TranscriptionSegment?> checkAndInsertConvoStarterResult(String selectedText) async {
+    if (selectedText.trim().isEmpty) return null;
+    if (_selectedIds.isEmpty) return null;
+
+    final signature = (_selectedIds.toList()..sort()).join(',');
+    if (signature == _lastCheckedConvoSelectionSignature) {
+      return null;
+    }
+    _lastCheckedConvoSelectionSignature = signature;
+
+    // Gather candidate starters (prefer pages marked as Convo Starter, fallback to any Notion segment)
+    List<TranscriptionSegment> candidates = notionConvoStarters;
+    if (candidates.isEmpty) {
+      candidates = _segments.where((s) => s.type == SegmentType.notion).toList();
+    }
+    if (candidates.isEmpty) return null;
+
+    // Build candidate index
+    final candidateList = candidates.map((s) {
+      final topic = s.contextTopic ?? (s.bubbleName ?? "Untitled");
+      final preview = s.text.length > 200 ? "${s.text.substring(0, 200)}..." : s.text;
+      return "[ID: ${s.id}] Topic: $topic | Context: ${preview.replaceAll('\n', ' ')}";
+    }).join("\n");
+
+    final selectorPrompt = buildConvoStarterSelectorPrompt(selectedText, candidateList);
+
+    String bestId = "NONE";
+    try {
+      final stream = await _geminiService.generateStream(selectorPrompt, model: "gemini-2.5-flash");
+      String fullResponse = "";
+      await for (final chunk in stream) {
+        chunk.fold((l) => null, (r) => fullResponse += r);
+      }
+      bestId = parseConvoStarterMatchId(fullResponse);
+    } catch (e) {
+      print("Convo starter classifier error: $e");
+      return null;
+    }
+
+    if (bestId == "NONE" || bestId.isEmpty) {
+      return null;
+    }
+
+    // Locate matching candidate
+    TranscriptionSegment? matchedStarter;
+    try {
+      matchedStarter = candidates.firstWhere(
+        (s) => s.id == bestId,
+        orElse: () => candidates.firstWhere(
+          (s) => bestId.contains(s.id) || s.id.contains(bestId),
+          orElse: () => null as dynamic,
+        ),
+      );
+    } catch (_) {
+      matchedStarter = null;
+    }
+
+    if (matchedStarter == null) return null;
+
+    final topic = matchedStarter.contextTopic ?? "Notion Topic";
+    final synthesisPrompt = buildConvoStarterSynthesisPrompt(
+      selectedText: selectedText,
+      topic: topic,
+      notionContent: matchedStarter.text,
+    );
+
+    try {
+      final synthesisResult = await _activeAiService.generate(synthesisPrompt, model: _selectedModel);
+      return await synthesisResult.fold(
+        (failure) {
+          print("Convo starter synthesis failed: ${failure.message}");
+          return null;
+        },
+        (synthesisText) async {
+          if (synthesisText.trim().isEmpty) return null;
+
+          String fullText = synthesisText.trim();
+          if (matchedStarter!.sourceUrl != null && matchedStarter.sourceUrl!.isNotEmpty) {
+            fullText += "\n\n[Open in Notion](${matchedStarter.sourceUrl})";
+          }
+
+          final resultsSegment = TranscriptionSegment(
+            id: "${DateTime.now().millisecondsSinceEpoch}_starter_result",
+            text: fullText,
+            timestamp: DateTime.now(),
+            type: SegmentType.aiResponse,
+            bubbleName: "Starter Match: $topic",
+            bubbleIcon: "ðŸ’¡",
+            sourceUrl: matchedStarter.sourceUrl,
+            contextTopic: matchedStarter.contextTopic,
+            isUser: false,
+          );
+
+          await _db.insertSegment(resultsSegment);
+          await _loadSegments();
+          return resultsSegment;
+        },
+      );
+    } catch (e) {
+      print("Convo starter synthesis error: $e");
+      return null;
+    }
+  }
+
   void toggleSelection(String id) {
     if (_selectedIds.contains(id)) {
       _selectedIds.remove(id);
@@ -2313,16 +2615,20 @@ $text
         .map((s) => s.text)
         .join("\n\n");
        if (textToProcess.isNotEmpty) {
-          // Debounce could be good here, but for now direct call
           _generateSuggestions(textToProcess);
+          _queueConvoStarterRelevanceCheck(textToProcess);
        }
     } else {
       _suggestedBubbles = [];
+      _cancelConvoStarterRelevanceCheck();
+      _lastCheckedConvoSelectionSignature = null;
     }
   }
 
   void clearSelection() {
     _selectedIds.clear();
+    _cancelConvoStarterRelevanceCheck();
+    _lastCheckedConvoSelectionSignature = null;
     notifyListeners();
   }
 

@@ -176,11 +176,20 @@ class AiResultBottomSheet extends StatelessWidget {
                                                 data: responses[index],
                                                 selectable: true,
                                                 onTapLink: (text, href, title) async {
-                                                  if (href != null) {
-                                                     final Uri url = Uri.parse(href);
-                                                     if (await canLaunchUrl(url)) {
-                                                        await launchUrl(url, mode: LaunchMode.externalApplication);
-                                                     }
+                                                  if (href != null && href.trim().isNotEmpty) {
+                                                    final Uri url = Uri.parse(href.trim());
+                                                    try {
+                                                      final launched = await launchUrl(url, mode: LaunchMode.externalApplication);
+                                                      if (!launched) {
+                                                        await launchUrl(url, mode: LaunchMode.platformDefault);
+                                                      }
+                                                    } catch (_) {
+                                                      try {
+                                                        await launchUrl(url, mode: LaunchMode.inAppWebView);
+                                                      } catch (e) {
+                                                        print("Could not open link: $e");
+                                                      }
+                                                    }
                                                   }
                                                 },
                                                 imageBuilder: (uri, title, alt) {
