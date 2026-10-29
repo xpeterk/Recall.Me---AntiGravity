@@ -28,8 +28,18 @@ class SupabaseService {
     _isInitializing = true;
 
     try {
-      String? url = dotenv.env['SUPABASE_URL']?.trim();
-      String? anonKey = (dotenv.env['SUPABASE_ANON_KEY'] ?? dotenv.env['SUPABASE_KEY'])?.trim();
+      String? url = (dotenv.env['SUPABASE_URL'] ??
+              dotenv.env['VITE_SUPABASE_URL'] ??
+              const String.fromEnvironment('SUPABASE_URL'))
+          .trim();
+      if (url.isEmpty) url = null;
+
+      String? anonKey = (dotenv.env['SUPABASE_ANON_KEY'] ??
+              dotenv.env['SUPABASE_KEY'] ??
+              dotenv.env['VITE_SUPABASE_PUBLISHABLE_KEY'] ??
+              const String.fromEnvironment('SUPABASE_ANON_KEY'))
+          .trim();
+      if (anonKey.isEmpty) anonKey = null;
 
       if (settingsRepository != null && (url == null || url.isEmpty || anonKey == null || anonKey.isEmpty)) {
         final prefUrl = await settingsRepository.getPreference('supabase_url');

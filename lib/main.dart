@@ -14,14 +14,17 @@ import 'features/starters/data/starters_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Load environment variables
-  await dotenv.load(fileName: ".env");
+  // Load environment variables safely
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (_) {}
   
   // Initialize Background Service
   await BackgroundServiceManager.initialize();
 
-  // Initialize Supabase in background
-  SupabaseService().initialize();
+  // Initialize Supabase with settings repo fallback
+  final settingsRepo = NativeSettingsRepository();
+  await SupabaseService().initialize(settingsRepository: settingsRepo);
 
   // Fix Android Nav Bar overlap (Edge-to-Edge)
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
