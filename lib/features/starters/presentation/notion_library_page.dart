@@ -324,15 +324,24 @@ class _NotionLibraryPageState extends State<NotionLibraryPage> {
                     hintText: "Search notes, key points, angles...",
                     hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
                     prefixIcon: const Icon(Icons.search, color: Colors.white54, size: 20),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear, color: Colors.white54, size: 18),
-                            onPressed: () {
-                              _searchController.clear();
-                              _onSearchChanged("");
-                            },
+                    suffixIcon: _isSearching
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accent),
+                            ),
                           )
-                        : null,
+                        : _searchController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, color: Colors.white54, size: 18),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  _onSearchChanged("");
+                                },
+                              )
+                            : null,
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
@@ -606,6 +615,7 @@ class _NotionLibraryPageState extends State<NotionLibraryPage> {
                                 );
                               },
                             ),
+                          ),
             ),
           ],
         ),

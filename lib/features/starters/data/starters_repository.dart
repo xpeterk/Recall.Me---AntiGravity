@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../../recall/data/local_database.dart';
 import '../../recall/domain/transcription_segment.dart';
@@ -47,234 +46,81 @@ class StartersRepository extends ChangeNotifier {
     SemanticEmbeddingService? embeddingService,
   })  : _supabaseService = supabaseService ?? SupabaseService(),
         _localDb = localDb ?? LocalDatabase(),
-        _embeddingService = embeddingService ?? SemanticEmbeddingService() {
-    _initDefaultSeedData();
-  }
+        _embeddingService = embeddingService ?? SemanticEmbeddingService();
 
-  void _initDefaultSeedData() {
-    final now = DateTime(2026, 10, 28, 14, 0);
-
-    _starters = [
-      StarterItem(
-        id: 'seed_starter_1',
-        title: 'AI datacenter buildouts',
-        summary: 'Hyperscalers keep raising AI capex. The debate is capacity genuinely short, or are we overbuilding? Power, not chips.',
-        category: 'AI',
-        angles: [
-          'Compute must catch up with demand',
-          'Misconceptions: water use & electricity prices',
-          'Financing: is it a bubble?',
-        ],
-        notionPageIds: ['note_ai_1'],
-        createdAt: now.subtract(const Duration(days: 4)),
-        updatedAt: now.subtract(const Duration(days: 4)),
-      ),
-      StarterItem(
-        id: 'seed_starter_2',
-        title: 'Fed rate path & the soft landing',
-        summary: 'Inflation is cooling smoothly while labor markets soften slowly. The question is terminal rate vs neutral rate.',
-        category: 'Markets',
-        angles: [
-          'Terminal rate vs neutral rate',
-          'Labor market cooling vs crack',
-        ],
-        notionPageIds: ['note_mk_1'],
-        createdAt: now.subtract(const Duration(days: 7)),
-        updatedAt: now.subtract(const Duration(days: 7)),
-      ),
-      StarterItem(
-        id: 'seed_starter_3',
-        title: 'GLP-1 drugs & the food industry',
-        summary: 'GLP-1 adoption is shifting adult calorie consumption. Packaged food and restaurant volume headwinds.',
-        category: 'Health',
-        angles: [
-          'Packaged food volume impact',
-          'Healthcare payer adoption curves',
-        ],
-        notionPageIds: ['note_hl_1'],
-        createdAt: now.subtract(const Duration(days: 10)),
-        updatedAt: now.subtract(const Duration(days: 10)),
-      ),
-      StarterItem(
-        id: 'seed_starter_4',
-        title: 'Nuclear & SMRs for baseload power',
-        summary: 'Tech demand for clean, always-on power is reviving nuclear interest. Small modular reactors timeline.',
-        category: 'Energy',
-        angles: [
-          'Hyperscaler PPA agreements',
-          'Regulatory timeline for SMRs',
-        ],
-        notionPageIds: ['note_en_1'],
-        createdAt: now.subtract(const Duration(days: 13)),
-        updatedAt: now.subtract(const Duration(days: 13)),
-      ),
-      StarterItem(
-        id: 'seed_starter_5',
-        title: 'Humanoid robots: hype vs. reality',
-        summary: 'Demos are impressive, but deployment depends on cost per task-hour and reliability.',
-        category: 'Tech',
-        angles: [
-          'BOM cost scaling',
-          'Warehouse vs household deployment',
-        ],
-        notionPageIds: ['note_th_1'],
-        createdAt: now.subtract(const Duration(days: 20)),
-        updatedAt: now.subtract(const Duration(days: 20)),
-      ),
-      StarterItem(
-        id: 'seed_starter_6',
-        title: 'Stablecoins & payments rails',
-        summary: 'Stablecoins are moving from crypto trading into cross-border payments and treasury.',
-        category: 'Fintech',
-        angles: [
-          'Cross-border settlement speed',
-          'Yield-bearing regulation',
-        ],
-        notionPageIds: ['note_ft_1'],
-        createdAt: now.subtract(const Duration(days: 41)),
-        updatedAt: now.subtract(const Duration(days: 41)),
-      ),
-      StarterItem(
-        id: 'seed_starter_7',
-        title: 'Remote work & commercial real estate',
-        summary: 'Office vacancy has stabilized at a lower level. Older B-buildings face the maturity wall.',
-        category: 'Real Estate',
-        angles: [
-          'CMBS maturity wall',
-          'Class A vs Class B divergence',
-        ],
-        notionPageIds: ['note_re_1'],
-        createdAt: now.subtract(const Duration(days: 35)),
-        updatedAt: now.subtract(const Duration(days: 35)),
-      ),
-    ];
-
-    _notionNotes = [
-      NotionLibraryNote(
-        id: 'note_ai_1',
-        title: 'AI datacenter buildouts',
-        excerpt: 'Hyperscalers keep raising AI capex. The debate is capacity genuinely short, or are we overbuilding? Cooling, water use is not trivial but small next to agriculture, versus a flat...',
-        category: 'AI',
-        editedAt: now.subtract(const Duration(days: 4)),
-        pageCount: 3,
-        url: 'https://notion.so/ai-datacenter-buildouts-master-notes',
-        suggestedAngles: [
-          'Compute must catch up with demand',
-          'Misconceptions: water use & electricity prices',
-          'Financing: is it a bubble?',
-        ],
-      ),
-      NotionLibraryNote(
-        id: 'note_mk_1',
-        title: 'Fed rate path & the soft landing',
-        excerpt: 'Inflation is cooling smoothly while labor markets soften slowly. The question is how fast to return to neutral policy.',
-        category: 'Markets',
-        editedAt: now.subtract(const Duration(days: 7)),
-        pageCount: 2,
-        url: 'https://notion.so/fed-rate-path-notes',
-        suggestedAngles: [
-          'Terminal rate vs neutral rate',
-          'Labor market cooling vs crack',
-        ],
-      ),
-      NotionLibraryNote(
-        id: 'note_hl_1',
-        title: 'GLP-1 drugs & the food industry',
-        excerpt: 'GLP-1 adoption is shifting adult calorie consumption. Packaged food and restaurant volume impacts.',
-        category: 'Health',
-        editedAt: now.subtract(const Duration(days: 10)),
-        pageCount: 2,
-        url: 'https://notion.so/glp1-food-industry-notes',
-        suggestedAngles: [
-          'Packaged food volume impact',
-          'Healthcare payer adoption curves',
-        ],
-      ),
-      NotionLibraryNote(
-        id: 'note_en_1',
-        title: 'Nuclear & SMRs for baseload power',
-        excerpt: 'Tech demand for clean, always-on power is reviving nuclear interest. Small modular reactors regulatory pipeline.',
-        category: 'Energy',
-        editedAt: now.subtract(const Duration(days: 13)),
-        pageCount: 3,
-        url: 'https://notion.so/nuclear-smrs-baseload',
-        suggestedAngles: [
-          'Hyperscaler PPA agreements',
-          'Regulatory timeline for SMRs',
-        ],
-      ),
-      NotionLibraryNote(
-        id: 'note_th_1',
-        title: 'Humanoid robots: hype vs. reality',
-        excerpt: 'Demos are impressive, but deployment depends on cost per task-hour, actuator longevity, and real-world safety.',
-        category: 'Tech',
-        editedAt: now.subtract(const Duration(days: 20)),
-        pageCount: 1,
-        url: 'https://notion.so/humanoid-robots-notes',
-        suggestedAngles: [
-          'BOM cost scaling',
-          'Warehouse vs household deployment',
-        ],
-      ),
-      NotionLibraryNote(
-        id: 'note_ft_1',
-        title: 'Stablecoins & payments rails',
-        excerpt: 'Stablecoins are moving from crypto trading into cross-border payments, merchant settlements, and treasury management.',
-        category: 'Fintech',
-        editedAt: now.subtract(const Duration(days: 41)),
-        pageCount: 1,
-        url: 'https://notion.so/stablecoins-payments-rails',
-        suggestedAngles: [
-          'Cross-border settlement speed',
-          'Yield-bearing regulation',
-        ],
-      ),
-      NotionLibraryNote(
-        id: 'note_re_1',
-        title: 'Remote work & commercial real estate',
-        excerpt: 'Office vacancy has stabilized at a lower level. Older B-buildings face the maturity wall, while Class A commands premiums.',
-        category: 'Real Estate',
-        editedAt: now.subtract(const Duration(days: 35)),
-        pageCount: 2,
-        url: 'https://notion.so/commercial-real-estate-stress',
-        suggestedAngles: [
-          'CMBS maturity wall',
-          'Class A vs Class B divergence',
-        ],
-      ),
-      NotionLibraryNote(
-        id: 'note_pol_1',
-        title: 'Semis Policy Tracker',
-        excerpt: 'Tracking CHIPS Act disbursements, export control updates, and packaging capacity constraints in Southeast Asia.',
-        category: 'Policy',
-        editedAt: now.subtract(const Duration(days: 45)),
-        pageCount: 4,
-        url: 'https://notion.so/semis-policy-tracker',
-        suggestedAngles: [
-          'CHIPS Act tranche release timeline',
-          'Advanced packaging bottlenecks',
-        ],
-      ),
-    ];
-  }
-
-  /// Refreshes starters and notes directly from live Supabase
+  /// Refreshes starters and notes directly from live Supabase and local Notion sync
   Future<void> loadAll() async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      if (_supabaseService.isConfigured) {
-        final remoteStarters = await _supabaseService.fetchStarters();
-        _starters = remoteStarters;
+      final List<StarterItem> fetchedStarters = [];
+      final List<NotionLibraryNote> fetchedNotes = [];
 
-        final remoteNotes = await _supabaseService.fetchNotionNotes();
-        _notionNotes = remoteNotes;
-      } else {
-        // If Supabase is not configured, show clear configuration message
-        _errorMessage = "Supabase is not configured. Please supply SUPABASE_URL and SUPABASE_ANON_KEY.";
+      // 1. Fetch from Supabase if configured
+      if (_supabaseService.isConfigured) {
+        try {
+          final remoteStarters = await _supabaseService.fetchStarters();
+          fetchedStarters.addAll(remoteStarters);
+
+          final remoteNotes = await _supabaseService.fetchNotionNotes();
+          fetchedNotes.addAll(remoteNotes);
+        } catch (e) {
+          debugPrint('Notice: Error fetching from Supabase: $e');
+        }
       }
+
+      // 2. Load from local database (Notion synced segments)
+      try {
+        final segments = await _localDb.getAllSegments();
+        final localNotionSegments = segments.where((s) => s.type == SegmentType.notion).toList();
+        final existingNoteIds = fetchedNotes.map((n) => n.id).toSet();
+
+        for (final s in localNotionSegments) {
+          if (!existingNoteIds.contains(s.id)) {
+            final lines = s.text.split('\n').where((l) => l.trim().isNotEmpty).toList();
+            final title = lines.isNotEmpty ? lines.first.replaceAll(RegExp(r'^[#\s]+'), '').trim() : 'Untitled Note';
+            final excerpt = lines.length > 1 ? lines.sublist(1).join(' ').trim() : s.text;
+
+            fetchedNotes.add(
+              NotionLibraryNote(
+                id: s.id,
+                title: title.isNotEmpty ? title : 'Untitled Note',
+                excerpt: excerpt.length > 180 ? '${excerpt.substring(0, 180)}...' : excerpt,
+                category: 'Notion Sync',
+                editedAt: s.timestamp,
+                pageCount: 1,
+                url: s.sourceUrl ?? 'https://notion.so/${s.id.replaceAll("-", "")}',
+                suggestedAngles: extractSuggestedAngles(s.text),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint('Notice: Error loading local Notion segments: $e');
+      }
+
+      // 3. If starters are empty but we have Notion notes, auto-derive starter topics from the Notion notes
+      if (fetchedStarters.isEmpty && fetchedNotes.isNotEmpty) {
+        for (final note in fetchedNotes) {
+          fetchedStarters.add(
+            StarterItem(
+              id: 'starter_${note.id}',
+              title: note.title,
+              summary: note.excerpt,
+              category: note.category ?? 'Notion',
+              angles: note.suggestedAngles,
+              notionPageIds: [note.id],
+              createdAt: note.editedAt,
+              updatedAt: note.editedAt,
+            ),
+          );
+        }
+      }
+
+      _starters = fetchedStarters;
+      _notionNotes = fetchedNotes;
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
