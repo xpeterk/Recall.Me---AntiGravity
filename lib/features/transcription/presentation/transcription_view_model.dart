@@ -27,6 +27,7 @@ import '../data/gemini_live_transcription_repository.dart';
 import '../../../../core/services/background_service_manager.dart';
 import '../../settings/domain/ai_bubble.dart';
 import '../../settings/domain/dynamic_starter.dart';
+import '../../starters/domain/models/starter_item.dart';
 import '../../knowledge/domain/notion_page.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -97,6 +98,49 @@ class TranscriptionViewModel extends ChangeNotifier {
   // Context State
   String? _conversationStarter;
   String? get conversationStarter => _conversationStarter;
+
+  StarterItem? _activeStarter;
+  StarterItem? get activeStarter => _activeStarter;
+
+  List<String> _activeStarterAngles = [];
+  List<String> get activeStarterAngles => _activeStarterAngles;
+
+  List<TranscriptionSegment> _seededContextSegments = [];
+  List<TranscriptionSegment> get seededContextSegments => _seededContextSegments;
+
+  void clearActiveStarter() {
+    _activeStarter = null;
+    _activeStarterAngles.clear();
+    _seededContextSegments.clear();
+    _conversationStarter = null;
+    notifyListeners();
+  }
+
+  void removeActiveAngle(String angle) {
+    _activeStarterAngles.remove(angle);
+    notifyListeners();
+  }
+
+  void removeSeededBubble(String id) {
+    _seededContextSegments.removeWhere((s) => s.id == id);
+    notifyListeners();
+  }
+
+  void startConversationWithRefinedStarter({
+    StarterItem? starter,
+    required List<String> selectedAngles,
+    List<TranscriptionSegment>? seededBubbles,
+  }) {
+    _activeStarter = starter;
+    _activeStarterAngles = List.from(selectedAngles);
+    _seededContextSegments = List.from(seededBubbles ?? []);
+    if (starter != null) {
+      _conversationStarter = starter.title;
+    } else if (seededBubbles != null && seededBubbles.isNotEmpty) {
+      _conversationStarter = "Seeded from ${seededBubbles.length} bubbles";
+    }
+    notifyListeners();
+  }
   
   String _externalContext = "";
   String get externalContext => _externalContext;
@@ -2144,6 +2188,27 @@ Return ONLY valid JSON in this exact format:
          }
          commonContext += "------------------------\n";
       }
+    }
+    if (_activeStarter != null) {
+      commonContext += "\n\n--- Active Starter Context ---\nStarter Topic: ${_activeStarter!.title}\n";
+      if (_activeStarter!.summary != null && _activeStarter!.summary!.isNotEmpty) {
+        commonContext += "Starter Summary: ${_activeStarter!.summary}\n";
+      }
+      commonContext += "------------------------------\n";
+    }
+    if (_activeStarterAngles.isNotEmpty) {
+      commonContext += "\n\n--- Answer Focus Angles (Answers MUST explicitly focus on and address these angles) ---\n";
+      for (final angle in _activeStarterAngles) {
+        commonContext += "- $angle\n";
+      }
+      commonContext += "---------------------------------------------------------------------------------------\n";
+    }
+    if (_seededContextSegments.isNotEmpty) {
+      commonContext += "\n\n--- Seeded Conversation Context (From User Selected Bubbles) ---\n";
+      for (final s in _seededContextSegments) {
+        commonContext += "[${s.timestamp.hour}:${s.timestamp.minute.toString().padLeft(2, '0')}] ${s.text}\n";
+      }
+      commonContext += "----------------------------------------------------------------\n";
     }
     if (_externalContext.isNotEmpty) {
       commonContext += _externalContext;

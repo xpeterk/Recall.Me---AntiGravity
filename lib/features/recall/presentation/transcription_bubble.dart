@@ -16,6 +16,7 @@ class TranscriptionBubble extends StatelessWidget {
   final List<TranscriptionSegment>? groupedChildren;
   final Set<String>? selectedSegmentIds;
   final bool showDiagnostics;
+  final VoidCallback? onLongPress;
 
   const TranscriptionBubble({
     Key? key,
@@ -29,6 +30,7 @@ class TranscriptionBubble extends StatelessWidget {
     this.groupedChildren,
     this.selectedSegmentIds,
     this.showDiagnostics = false,
+    this.onLongPress,
   }) : super(key: key);
 
   @override
@@ -103,6 +105,7 @@ class TranscriptionBubble extends StatelessWidget {
 
     return GestureDetector(
       onTap: () => onTap(segment.id),
+      onLongPress: onLongPress,
       child: Align(
         alignment: alignment,
         child: AnimatedContainer(
@@ -119,18 +122,34 @@ class TranscriptionBubble extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      width: 16,
-                      height: 16,
-                      decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFF60A5FA) : const Color(0xFF3B82F6),
-                        shape: BoxShape.circle,
+                    if (isSelectionMode)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: Checkbox(
+                            value: isSelected,
+                            onChanged: (_) => onTap(segment.id),
+                            activeColor: const Color(0xFF3B82F6),
+                            checkColor: Colors.white,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        width: 16,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: isSelected ? const Color(0xFF60A5FA) : const Color(0xFF3B82F6),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.check, size: 10, color: Colors.white),
+                        ),
                       ),
-                      child: const Center(
-                        child: Icon(Icons.check, size: 10, color: Colors.white),
-                      ),
-                    ),
                     Expanded(
                       child: Text(
                         segment.text,
@@ -187,6 +206,20 @@ class TranscriptionBubble extends StatelessWidget {
                         ],
                       ),
                     ),
+                    if (isSelectionMode) ...[
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Checkbox(
+                          value: isSelected,
+                          onChanged: (_) => onTap(segment.id),
+                          activeColor: const Color(0xFF4F46E5),
+                          checkColor: Colors.white,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -417,6 +450,7 @@ class TopicAccordionGroupCard extends StatelessWidget {
   final VoidCallback onToggleExpand;
   final Function(String) onChildTap;
   final bool showDiagnostics;
+  final VoidCallback? onLongPress;
 
   const TopicAccordionGroupCard({
     Key? key,
@@ -426,6 +460,7 @@ class TopicAccordionGroupCard extends StatelessWidget {
     required this.onToggleExpand,
     required this.onChildTap,
     this.showDiagnostics = false,
+    this.onLongPress,
   }) : super(key: key);
 
   @override

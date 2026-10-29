@@ -4,8 +4,10 @@ import 'package:google_fonts/google_fonts.dart';
 class AppTheme {
   static const Color background = Color(0xFF0A0A0C); // Pitch black
   static const Color surface = Color(0xFF121215);    // Dark slate gray surface
+  static const Color cardBackground = Color(0xFF161619); // 16px radius cards
   static const Color primary = Color(0xFF4F46E5);    // Vibrant Indigo
   static const Color secondary = Color(0xFF6366F1);  // Light Indigo accent
+  static const Color accent = Color(0xFF818CF8);     // Mockup accent
   static const Color textPrimary = Color(0xFFFAFAFA);
   static const Color textSecondary = Color(0xFFA1A1AA);
 

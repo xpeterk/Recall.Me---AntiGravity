@@ -1,5 +1,6 @@
 import 'package:dartz/dartz.dart';
 import '../../../../core/errors/failures.dart';
+import '../../recall/domain/transcription_segment.dart';
 import '../domain/knowledge_repository.dart';
 
 class MockKnowledgeRepository implements KnowledgeRepository {
@@ -40,8 +41,12 @@ class MockKnowledgeRepository implements KnowledgeRepository {
   }
 
   @override
-  Future<Either<Failure, String>> getSegmentById(String id) async {
+  Future<Either<Failure, TranscriptionSegment>> getSegmentById(String id) async {
     await Future.delayed(const Duration(milliseconds: 500));
-    return const Right("This is the mock content for page ID: $id");
+    return Right(TranscriptionSegment(
+      id: id,
+      text: "This is the mock content for page ID: $id",
+      timestamp: DateTime(2026, 10, 28),
+    ));
   }
 }
