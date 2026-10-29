@@ -10,6 +10,7 @@ import '../domain/models/starter_sort_option.dart';
 import 'create_starter_page.dart';
 import 'notion_page_preview_dialog.dart';
 import 'starter_refine_page.dart';
+import '../../transcription/presentation/transcription_view_model.dart';
 
 class NotionLibraryPage extends StatefulWidget {
   final bool selectMode;
@@ -30,6 +31,27 @@ class _NotionLibraryPageState extends State<NotionLibraryPage> {
 
   List<NotionLibraryNote>? _searchResults;
   bool _isSearching = false;
+  bool _isSyncing = false;
+
+  Future<void> _syncNotionWorkspace() async {
+    setState(() => _isSyncing = true);
+    final vm = Provider.of<TranscriptionViewModel>(context, listen: false);
+    final repo = Provider.of<StartersRepository>(context, listen: false);
+    try {
+      await vm.backgroundSync(silent: false);
+      await repo.loadAll();
+      if (mounted) {
+        repo.setSyncNotification("⚡ Notion workspace synced ( notes available)");
+      }
+    } catch (e) {
+      if (mounted) {
+        repo.setSyncNotification("Sync encountered an issue: ");
+      }
+    }
+    if (mounted) {
+      setState(() => _isSyncing = false);
+    }
+  }
 
   static const List<String> _categories = [
     "All", "AI", "Markets", "Health", "Energy", "Tech",
@@ -219,6 +241,14 @@ class _NotionLibraryPageState extends State<NotionLibraryPage> {
               ],
             ),
           ),
+          // Sync Notion button
+          IconButton(
+            icon: _isSyncing
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accent))
+                : const Icon(Icons.sync, color: AppTheme.accent),
+            tooltip: "Sync Notion Workspace",
+            onPressed: _isSyncing ? null : _syncNotionWorkspace,
+          ),
           // + New Starter button
           IconButton(
             icon: const Icon(Icons.add, color: AppTheme.accent),
@@ -235,6 +265,48 @@ class _NotionLibraryPageState extends State<NotionLibraryPage> {
       body: SafeArea(
         child: Column(
           children: [
+            // Notion Webhook / Realtime Sync Notification Banner
+            if (repo.syncNotificationBanner != null) ...[
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1B4B),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.accent.withOpacity(0.8), width: 1),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.bolt, color: AppTheme.accent, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        repo.syncNotificationBanner!,
+                        style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () {
+                        repo.clearSyncNotification();
+                        repo.loadAll();
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        child: Text("Refresh", style: TextStyle(color: AppTheme.accent, fontWeight: FontWeight.bold, fontSize: 12)),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () => repo.clearSyncNotification(),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.close, size: 14, color: Colors.white54),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             // Search Input
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -360,7 +432,10 @@ class _NotionLibraryPageState extends State<NotionLibraryPage> {
                                 ],
                               ),
                             )
-                          : ListView.builder(
+                          : RefreshIndicator(
+                              onRefresh: () => repo.loadAll(),
+                              color: AppTheme.primary,
+                              child: ListView.builder(
                               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                               itemCount: groupedNotes.keys.length,
                               itemBuilder: (context, groupIndex) {

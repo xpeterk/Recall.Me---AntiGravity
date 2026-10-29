@@ -17,11 +17,29 @@ class StartersRepository extends ChangeNotifier {
   List<NotionLibraryNote> _notionNotes = [];
   bool _isLoading = false;
   String? _errorMessage;
+  String? _syncNotificationBanner;
 
   List<StarterItem> get starters => _starters;
   List<NotionLibraryNote> get notionNotes => _notionNotes;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  String? get syncNotificationBanner => _syncNotificationBanner;
+
+  void clearSyncNotification() {
+    _syncNotificationBanner = null;
+    notifyListeners();
+  }
+
+  void setSyncNotification(String message) {
+    _syncNotificationBanner = message;
+    notifyListeners();
+  }
+
+  void initRealtimeListener() {
+    _supabaseService.subscribeToRealtimeChanges(() {
+      setSyncNotification("⚡ Notion updates received from cloud · Tap to refresh");
+    });
+  }
 
   StartersRepository({
     SupabaseService? supabaseService,
@@ -240,68 +258,23 @@ class StartersRepository extends ChangeNotifier {
     ];
   }
 
-  /// Refreshes starters and notes from Supabase (falling back to local and seeds)
+  /// Refreshes starters and notes directly from live Supabase
   Future<void> loadAll() async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      // 1. Fetch from Supabase if configured
       if (_supabaseService.isConfigured) {
         final remoteStarters = await _supabaseService.fetchStarters();
-        if (remoteStarters.isNotEmpty) {
-          // Merge with seeds without duplicates
-          final existingIds = remoteStarters.map((s) => s.id).toSet();
-          final merged = [...remoteStarters];
-          for (final seed in _starters) {
-            if (!existingIds.contains(seed.id)) {
-              merged.add(seed);
-            }
-          }
-          _starters = merged;
-        }
+        _starters = remoteStarters;
 
         final remoteNotes = await _supabaseService.fetchNotionNotes();
-        if (remoteNotes.isNotEmpty) {
-          final existingNoteIds = remoteNotes.map((n) => n.id).toSet();
-          final mergedNotes = [...remoteNotes];
-          for (final seed in _notionNotes) {
-            if (!existingNoteIds.contains(seed.id)) {
-              mergedNotes.add(seed);
-            }
-          }
-          _notionNotes = mergedNotes;
-        }
+        _notionNotes = remoteNotes;
+      } else {
+        // If Supabase is not configured, show clear configuration message
+        _errorMessage = "Supabase is not configured. Please supply SUPABASE_URL and SUPABASE_ANON_KEY.";
       }
-
-      // 2. Also incorporate synced local SQLite Notion segments
-      try {
-        final segments = await _localDb.getAllSegments();
-        final notionSegments = segments.where((s) => s.type == SegmentType.notion).toList();
-        final currentNoteIds = _notionNotes.map((n) => n.id).toSet();
-
-        for (final seg in notionSegments) {
-          if (!currentNoteIds.contains(seg.id)) {
-            final lines = seg.text.split('\n');
-            String title = seg.bubbleName ?? "Synced Note";
-            if (lines.first.startsWith("Notion Page: ")) {
-              title = lines.first.replaceFirst("Notion Page: ", "").trim();
-            }
-            final excerpt = lines.length > 1 ? lines.sublist(1).join(' ').trim() : seg.text;
-            _notionNotes.add(NotionLibraryNote(
-              id: seg.id,
-              title: title,
-              excerpt: excerpt.length > 200 ? "${excerpt.substring(0, 200)}..." : excerpt,
-              category: 'Other',
-              editedAt: seg.timestamp,
-              url: seg.sourceUrl,
-              pageCount: 1,
-              suggestedAngles: extractSuggestedAngles(seg.text, title: title),
-            ));
-          }
-        }
-      } catch (_) {}
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
@@ -310,24 +283,21 @@ class StartersRepository extends ChangeNotifier {
     }
   }
 
-  /// Saves a starter to Supabase and in-memory list
+  /// Saves a starter directly to Supabase and updates in-memory list
   Future<StarterItem> saveStarter(StarterItem starter) async {
-    StarterItem toSave = starter;
-    if (toSave.id.isEmpty) {
-      toSave = toSave.copyWith(id: "starter_${DateTime.now().millisecondsSinceEpoch}");
+    if (!_supabaseService.isConfigured) {
+      throw Exception("Cannot save starter: Supabase is not configured.");
     }
 
-    if (_supabaseService.isConfigured) {
-      final remote = await _supabaseService.saveStarter(toSave);
-      if (remote != null) {
-        toSave = remote;
-      }
+    final remote = await _supabaseService.saveStarter(starter);
+    if (remote == null) {
+      throw Exception("Failed to save starter to Supabase.");
     }
 
-    _starters.removeWhere((s) => s.id == toSave.id);
-    _starters.insert(0, toSave.copyWith(isNew: true));
+    _starters.removeWhere((s) => s.id == remote.id);
+    _starters.insert(0, remote.copyWith(isNew: true));
     notifyListeners();
-    return toSave;
+    return remote;
   }
 
   /// Hybrid search for Notion notes combining keyword and vector similarity

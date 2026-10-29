@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../settings/domain/settings_repository.dart';
@@ -14,13 +15,15 @@ class SupabaseService {
   bool _isInitializing = false;
   bool _isConfigured = false;
   String? _configuredUrl;
+  RealtimeChannel? _realtimeChannel;
 
   bool get isConfigured => _isConfigured && _client != null;
   SupabaseClient? get client => _client;
+  String? get configuredUrl => _configuredUrl;
 
   /// Reads credentials from .env or SettingsRepository and initializes Supabase client
-  Future<bool> initialize({SettingsRepository? settingsRepository}) async {
-    if (_client != null) return true;
+  Future<bool> initialize({SettingsRepository? settingsRepository, bool force = false}) async {
+    if (_client != null && !force) return true;
     if (_isInitializing) return false;
     _isInitializing = true;
 
@@ -59,13 +62,40 @@ class SupabaseService {
         return true;
       }
     } catch (e) {
-      // Supabase not reachable or invalid url/key
       _isConfigured = false;
     } finally {
       _isInitializing = false;
     }
 
     return false;
+  }
+
+  /// Subscribes to real-time changes on notion_notes, notion_pages, and starters tables
+  void subscribeToRealtimeChanges(VoidCallback onDataChanged) {
+    if (!isConfigured || _client == null) return;
+    try {
+      _realtimeChannel?.unsubscribe();
+      _realtimeChannel = _client!.channel('public:notion_library_sync')
+        ..onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'notion_notes',
+          callback: (_) => onDataChanged(),
+        )
+        ..onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'notion_pages',
+          callback: (_) => onDataChanged(),
+        )
+        ..onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'starters',
+          callback: (_) => onDataChanged(),
+        )
+        ..subscribe();
+    } catch (_) {}
   }
 
   /// Fetches starters from Supabase 'starters' table
