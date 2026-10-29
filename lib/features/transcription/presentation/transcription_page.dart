@@ -10,6 +10,12 @@ import 'mic_visualizer.dart';
 import 'search_bottom_sheet.dart';
 import 'voice_prompt_dialog.dart';
 import '../../settings/domain/ai_bubble.dart';
+import '../../starters/presentation/notion_library_page.dart';
+import '../../starters/presentation/starter_refine_page.dart';
+import '../../starters/presentation/create_starter_page.dart';
+import '../../starters/domain/models/starter_item.dart';
+import '../../starters/data/starters_repository.dart';
+import '../../../../core/theme/app_theme.dart';
 
 class TranscriptionPage extends StatefulWidget {
   const TranscriptionPage({Key? key}) : super(key: key);
@@ -359,6 +365,15 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                       ),
                     ),
                     IconButton(
+                       icon: const Icon(Icons.checklist_rtl, color: Colors.white70, size: 22),
+                       tooltip: "Select bubbles",
+                       onPressed: () {
+                         if (viewModel.segments.isNotEmpty) {
+                           viewModel.enterSelectionMode(viewModel.segments.first.id);
+                         }
+                       },
+                    ),
+                    IconButton(
                        icon: const Icon(Icons.explore_outlined, color: Colors.amberAccent),
                        tooltip: "Conversation Starters",
                        onPressed: () {
@@ -410,7 +425,8 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
           Column(
             children: [
               SizedBox(height: kToolbarHeight + MediaQuery.of(context).padding.top),
-              
+              if (viewModel.activeStarter != null || viewModel.activeStarterAngles.isNotEmpty || viewModel.seededContextSegments.isNotEmpty)
+                _buildFocusContextBanner(context, viewModel),
               Expanded(
                 child: Stack(
                   children: [
@@ -529,6 +545,7 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                           child: TranscriptionBubble(
                             segment: segment,
                             isSelectionMode: viewModel.isSelectionMode,
+                            onLongPress: () => viewModel.enterSelectionMode(segment.id),
                             isSelected: isSelected,
                             onToggleExpand: viewModel.toggleSummaryExpansion,
                             onDrillDown: viewModel.drillDownOnAiSegment,
@@ -628,9 +645,84 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
              bottom: 0,
              left: 0,
              right: 0,
-             child: Padding(
-                padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
-                child: RecallShelf(
+             child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF161619),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  border: Border.all(color: Colors.white12),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, -2)),
+                  ],
+                ),
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 12,
+                  bottom: MediaQuery.of(context).padding.bottom + 8,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Primary: Start new convo from N selected (Mockup 10)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          final selected = viewModel.segments.where((s) => viewModel.isSelected(s.id)).toList();
+                          viewModel.exitSelectionMode();
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => StarterRefinePage(seededBubbles: selected),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          elevation: 0,
+                        ),
+                        icon: const Icon(Icons.forum_outlined, size: 18),
+                        label: Text(
+                          "Start new convo from ${viewModel.selectionCount} selected",
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              final selected = viewModel.segments.where((s) => viewModel.isSelected(s.id)).toList();
+                              viewModel.exitSelectionMode();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => CreateStarterPage(prefillFromBubbles: selected),
+                                ),
+                              );
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              side: const BorderSide(color: Colors.white24),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                            icon: const Icon(Icons.bookmark_add_outlined, size: 16, color: AppTheme.accent),
+                            label: const Text("+ Save as starter", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton(
+                          onPressed: () => viewModel.exitSelectionMode(),
+                          child: const Text("Cancel", style: TextStyle(color: Colors.white54, fontSize: 13)),
+                        ),
+                      ],
+                    ),
+                    const Divider(color: Colors.white10, height: 16),
+                    RecallShelf(
                         selectionCount: viewModel.selectionCount,
                         bubbles: viewModel.allBubbles,
                         onBubbleTap: (bubble) async {
@@ -676,7 +768,9 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                            );
                         },
                       ),
-              ),
+                  ],
+                ),
+             ),
           ),
           
           // Swipe down conversation starters panel
@@ -725,7 +819,69 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                         color: Colors.grey,
                       ),
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 16),
+
+                    // Browse Notion Library Card (Mockup 1)
+                    GestureDetector(
+                      onTap: () {
+                        setState(() => _showStartersPanel = false);
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const NotionLibraryPage()),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF161619),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppTheme.primary.withOpacity(0.4)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primary.withOpacity(0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.auto_stories, color: AppTheme.accent, size: 20),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Text(
+                                        "Browse Notion Library",
+                                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.primary,
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: const Text("NEW", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  const Text(
+                                    "Search everything, sort by date, and refine starters before you talk",
+                                    style: TextStyle(fontSize: 12, color: Colors.white54, height: 1.3),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white38),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     Row(
                       children: [
                         const Text(
@@ -734,6 +890,35 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
                             color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        InkWell(
+                          onTap: () {
+                            setState(() => _showStartersPanel = false);
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const CreateStarterPage()),
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppTheme.primary.withOpacity(0.4)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Icon(Icons.add, size: 12, color: AppTheme.accent),
+                                SizedBox(width: 2),
+                                Text(
+                                  "New starter",
+                                  style: TextStyle(fontSize: 11, color: AppTheme.accent, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         const Spacer(),
@@ -876,12 +1061,24 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
                                               size: 16,
                                             ),
                                             onTap: () {
-                                              viewModel.triggerConvoStarter(starter);
+                                              final starterItem = StarterItem(
+                                                id: starter.id,
+                                                title: starter.contextTopic ?? "Untitled Starter",
+                                                summary: starter.text.split('===LONG_CONTENT===').first.trim(),
+                                                angles: StartersRepository.extractSuggestedAngles(starter.text, title: starter.contextTopic),
+                                                createdAt: starter.timestamp,
+                                                updatedAt: starter.timestamp,
+                                              );
                                               setState(() {
                                                 _showStartersPanel = false;
                                                 _startersSearchController.clear();
                                                 _startersSearchQuery = "";
                                               });
+                                              Navigator.of(context).push(
+                                                MaterialPageRoute(
+                                                  builder: (_) => StarterRefinePage(starter: starterItem),
+                                                ),
+                                              );
                                             },
                                           ),
                                         );
@@ -957,6 +1154,109 @@ class _TranscriptionPageState extends State<TranscriptionPage> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+
+  Widget _buildFocusContextBanner(BuildContext context, TranscriptionViewModel viewModel) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161619).withOpacity(0.95),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.primary.withOpacity(0.4)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              if (viewModel.activeStarter != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withOpacity(0.25),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppTheme.primary.withOpacity(0.5)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.explore, size: 12, color: AppTheme.accent),
+                      const SizedBox(width: 4),
+                      Text(
+                        "STARTER: ${viewModel.activeStarter!.title}",
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.accent),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              if (viewModel.seededContextSegments.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.shade700, width: 0.8),
+                  ),
+                  child: Text(
+                    "SEEDED · ${viewModel.seededContextSegments.length} BUBBLES",
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber.shade200),
+                  ),
+                ),
+              ],
+              const Spacer(),
+              InkWell(
+                onTap: () => viewModel.clearActiveStarter(),
+                child: const Padding(
+                  padding: EdgeInsets.all(2),
+                  child: Icon(Icons.close, size: 16, color: Colors.white54),
+                ),
+              ),
+            ],
+          ),
+          if (viewModel.activeStarterAngles.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: const [
+                Icon(Icons.bolt, size: 12, color: AppTheme.accent),
+                SizedBox(width: 4),
+                Text(
+                  "ANSWER FOCUS",
+                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppTheme.accent, letterSpacing: 0.8),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: viewModel.activeStarterAngles.map((angle) {
+                return Chip(
+                  backgroundColor: const Color(0xFF1E1B4B).withOpacity(0.6),
+                  side: const BorderSide(color: AppTheme.primary, width: 0.8),
+                  labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  label: Text(
+                    angle,
+                    style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
+                  deleteIcon: const Icon(Icons.close, size: 12, color: AppTheme.accent),
+                  onDeleted: () => viewModel.removeActiveAngle(angle),
+                );
+              }).toList(),
+            ),
+          ],
         ],
       ),
     );

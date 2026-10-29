@@ -9,14 +9,22 @@ import 'core/theme/app_theme.dart';
 import 'features/settings/data/native_settings_repository.dart';
 import 'features/settings/domain/settings_repository.dart';
 import 'core/services/background_service_manager.dart';
+import 'features/starters/data/supabase_service.dart';
+import 'features/starters/data/starters_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Load environment variables
-  await dotenv.load(fileName: ".env");
+  // Load environment variables safely
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (_) {}
   
   // Initialize Background Service
   await BackgroundServiceManager.initialize();
+
+  // Initialize Supabase with settings repo fallback
+  final settingsRepo = NativeSettingsRepository();
+  await SupabaseService().initialize(settingsRepository: settingsRepo);
 
   // Fix Android Nav Bar overlap (Edge-to-Edge)
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -36,6 +44,8 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         Provider<SettingsRepository>(create: (_) => NativeSettingsRepository()),
+        Provider<SupabaseService>(create: (_) => SupabaseService()),
+        ChangeNotifierProvider<StartersRepository>(create: (_) => StartersRepository()),
         ChangeNotifierProvider(create: (_) => TranscriptionViewModel()),
       ],
       child: MaterialApp(

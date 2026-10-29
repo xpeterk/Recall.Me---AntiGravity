@@ -5,6 +5,7 @@ import '../../../../core/theme/glass_container.dart';
 import '../../settings/domain/settings_repository.dart';
 import '../../transcription/presentation/transcription_view_model.dart';
 import '../../knowledge/presentation/notion_help_bottom_sheet.dart';
+import '../../starters/data/supabase_service.dart';
 
 class AiServicesPage extends StatefulWidget {
   const AiServicesPage({Key? key}) : super(key: key);
